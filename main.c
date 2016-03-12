@@ -44,8 +44,6 @@ static void term_read_cb(struct shl_pty *pty,
                                   void *data,
                                   char *u8,
                                   size_t len) {
-  /*struct tsm_vte *vte = (struct tsm_vte *)data;*/
-  /*printf("in read cb: %c\n", *u8);*/
   tsm_vte_input(vte, u8, len);
 }
 
@@ -60,10 +58,6 @@ static void log_tsm(void *data, const char *file, int line, const char *fn,
 
 static void term_write_cb(struct tsm_vte *vtelocal, const char *u8, size_t len, void *data) {
   int r;
-  /*struct shl_pty * pty = (struct shl_pty *)data;*/
-  printf("vte callback: %c\n", *u8);
-  /*tsm_vte_input(vte, u8, len);*/
-  /* send */
   r = shl_pty_write(pty, u8, len);
   if (r < 0) {
     printf ("could not write to pty, %d\n", r);
@@ -92,17 +86,13 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
     fr = attr->fr; fg = attr->fg; fb = attr->fb; br = attr->br; bg = attr->bg; bb = attr->bb;
   }
   if (!len) {
-#if 1
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
     glRectf(dx+0,dy+0,dx+lw,dy+lh);
-#endif
   } else {
-#if 1
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
     glRectf(dx+0,dy+0,dx+lw,dy+lh);
-#endif
     glColor4ub(fr,fg,fb,255);
     /*if (age2 == 0 || age2 <= age) return 0;*/
     for (i=0; i < len;i+=cwidth)  {
@@ -183,10 +173,6 @@ int main(int argc, char *argv[])
   assert(vte != 0);
   printf("console width: %d\n", tsm_screen_get_width(console));
   printf("console height: %d\n", tsm_screen_get_height(console));
-/*
-  tsm_vte_input(vte, "Hello, World!", 14);
-  tsm_vte_input(vte, "zxghjulmnvxyaMMNPAS", 20);
-*/
 
   /* this call will fork */
   pid = shl_pty_open(&pty,
@@ -199,7 +185,7 @@ int main(int argc, char *argv[])
     perror("fork problem");
   } else if (pid != 0 ) {
     /* parent */
-    printf("in parent, child pid is %d\n", pid);
+    printf("OpenGL/TTF Terminal [%d]\n", pid);
   } else {
     char **argv = (char*[]) {
                 getenv("SHELL") ? : "/bin/bash",
@@ -207,7 +193,7 @@ int main(int argc, char *argv[])
         };
     int r;
     setenv("TERM", "vt100", 1);
-    printf("in child, SHELL %s\n", argv[0]);
+    printf("OpenGL-TTF terminal, %s\n", argv[0]);
     r = execve(argv[0], argv, environ);
     if (r < 0) { perror("execve failed"); }
     exit(1);
