@@ -32,10 +32,11 @@
 
 extern char **environ;
 
+int fh = 18;
 
 struct tsm_screen *console;
 struct tsm_vte *vte;
-tsm_age_t age;
+tsm_age_t screen_age;
 
 struct shl_pty *pty = 0;
 
@@ -44,7 +45,7 @@ static void term_read_cb(struct shl_pty *pty,
                                   char *u8,
                                   size_t len) {
   /*struct tsm_vte *vte = (struct tsm_vte *)data;*/
-  printf("in read cb: %c\n", *u8);
+  /*printf("in read cb: %c\n", *u8);*/
   tsm_vte_input(vte, u8, len);
 }
 
@@ -52,9 +53,9 @@ static void log_tsm(void *data, const char *file, int line, const char *fn,
                     const char *subs, unsigned int sev, const char *format,
                     va_list args)
 {
-        fprintf(stderr, "%d: %s: ", sev, subs);
-        vfprintf(stderr, format, args);
-        fprintf(stderr, "\n");
+  fprintf(stderr, "%d: %s: ", sev, subs);
+  vfprintf(stderr, format, args);
+  fprintf(stderr, "\n");
 }
 
 static void term_write_cb(struct tsm_vte *vtelocal, const char *u8, size_t len, void *data) {
@@ -74,22 +75,43 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
                    unsigned int cwidth, unsigned int posx,
                    unsigned int posy,
                    const struct tsm_screen_attr *attr,
-                   tsm_age_t age2, void *data)
+                   tsm_age_t age, void *data)
 {
-int i;
+  int i;
   int h;
-  int dx=posx*24, dy=(posy*24);
+  int lh=fh-2;
+  int lw=fh-8;
+  int dx=posx*lw, dy=(posy*lh);
   char buf[32];
-h = SDL_GetVideoInfo()->current_h;
-  dy = h-(posy*24)-24;
-  glColor4ub(0,0,255,255 / 10 * age2);
-  glPolygonMode(GL_FRONT, GL_LINE);
-  glRectf(dx+1,dy+1,dx+23,dy+23);
-  glColor4ub(255,255,255,255);
-  /*if (age2 == 0 || age2 <= age) return 0;*/
-  for (i=0; i < len;i+=cwidth)  {
-    sprintf(buf,"%c",ch[i]);
-    sth_draw_text(data, 3, 24.0f, dx+4,dy+4,buf,&dx);
+  uint8_t fr, fg, fb, br, bg, bb;
+  h = SDL_GetVideoInfo()->current_h;
+  dy = h-(posy*fh)-fh;
+  if (attr->inverse) {
+          fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
+  } else {
+          fr = attr->fr; fg = attr->fg; fb = attr->fb; br = attr->br; bg = attr->bg; bb = attr->bb;
+  }
+  if (!len) {
+    if (attr->inverse) {
+      sprintf(buf,"_");
+      sth_draw_text(data, 3, fh, dx+4,dy+4,buf,&dx);
+    }
+#if 0
+    glColor4ub(br,bg,bb,255);
+    glPolygonMode(GL_FRONT, GL_FILL);
+    glRectf(dx+0,dy+0,dx+lh,dy+lh);
+#endif
+  } else {
+#if 0
+    glColor4ub(br,bg,bb,255);
+    glPolygonMode(GL_FRONT, GL_FILL);
+    glRectf(dx+0,dy+0,dx+lh,dy+lh);
+#endif
+    /*if (age2 == 0 || age2 <= age) return 0;*/
+    for (i=0; i < len;i+=cwidth)  {
+      sprintf(buf,"%c",ch[i]);
+      sth_draw_text(data, 3, fh, dx+4,dy+4,buf,&dx);
+    }
   }
   return 0;
 }
@@ -158,7 +180,7 @@ int main(int argc, char *argv[])
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
-  tsm_screen_resize(console, (width / 24)-1, (height / 24)-1);
+  tsm_screen_resize(console, (width / fh)-1, (height / fh)-1);
   assert(vte != 0);
   printf("console width: %d\n", tsm_screen_get_width(console));
   printf("console height: %d\n", tsm_screen_get_height(console));
@@ -185,7 +207,7 @@ int main(int argc, char *argv[])
                 NULL
         };
     int r;
-    setenv("TERM", "xterm-256color", 1);
+    setenv("TERM", "vt100", 1);
     printf("in child, SHELL %s\n", argv[0]);
     r = execve(argv[0], argv, environ);
     if (r < 0) { perror("execve failed"); }
@@ -221,15 +243,14 @@ int main(int argc, char *argv[])
           /*printf("SDL TEXT\n");*/
           break;
         case SDL_QUIT:
-          done = 1;
+          /*done = 1;*/
           break;
         default:
           break;
       }
     }
-    
     glViewport(0, 0, width, height);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.1, 0.1, 0.1, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -240,15 +261,15 @@ int main(int argc, char *argv[])
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
-    glColor4ub(0,0,255,255);
+    glColor4ub(255,255,255,255);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    
+ 
     sth_begin_draw(stash);
-    age = tsm_screen_draw(console, draw_cb, stash);
+    screen_age = tsm_screen_draw(console, draw_cb, stash);
     sth_end_draw(stash);
-    
     glEnable(GL_DEPTH_TEST);
+    
     SDL_GL_SwapBuffers();
 
     SDL_Delay(20);
@@ -257,6 +278,7 @@ int main(int argc, char *argv[])
       int r = shl_pty_dispatch(pty);
       if (r<0) {
         printf("pty dispatch error %d\n", r);
+        done = 1;
       }
     }
   }
