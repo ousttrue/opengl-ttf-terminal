@@ -29,7 +29,7 @@
 
 #define HASH_LUT_SIZE 256
 #define MAX_ROWS 128
-#define MAX_FONTS 4
+#define MAX_FONTS 5
 #define VERT_COUNT (6*128)
 #define VERT_STRIDE (sizeof(float)*4)
 

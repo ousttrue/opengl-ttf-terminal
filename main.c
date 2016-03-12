@@ -32,7 +32,7 @@
 
 extern char **environ;
 
-int fh = 18;
+int fh = 21;
 
 struct tsm_screen *console;
 struct tsm_vte *vte;
@@ -80,7 +80,7 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
   int i;
   int h;
   int lh=fh;
-  int lw=fh-(fh / 3);
+  int lw=(fh / 2);
   int dx=posx*lw, dy=(posy*lh);
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
-  tsm_screen_resize(console, (width / fh)-1, (height / fh)-1);
+  tsm_screen_resize(console, (width / (fh / 2))-1, (height / fh)-1);
   assert(vte != 0);
   printf("console width: %d\n", tsm_screen_get_width(console));
   printf("console height: %d\n", tsm_screen_get_height(console));
