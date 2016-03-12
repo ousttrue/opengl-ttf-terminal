@@ -200,8 +200,6 @@ int sth_add_font(struct sth_stash* stash, int idx, const char* path)
 	return 1;
 	
 error:
-        printf("error loading %s\n", path);
-        perror("");
 	if (fnt->data) free(fnt->data);
 	if (fnt->glyphs) free(fnt->glyphs);
 	memset(fnt,0,sizeof(struct sth_font));

@@ -1,4 +1,8 @@
 
-fontstash: main.c fontstash.c
-	gcc -Wall -g -o fontstash main.c fontstash.c `sdl-config --cflags --libs` -lm -lGL
+fterm: main.c fontstash.c shl-pty.c shl-ring.c
+	gcc -Wall -g -o $@ $^ `sdl-config --cflags --libs` -lm -lGL -ltsm 
 
+clean:
+	rm fterm
+
+.PHONY: clean
