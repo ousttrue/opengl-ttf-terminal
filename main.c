@@ -261,8 +261,9 @@ int main(int argc, char *argv[])
 
     {
       int r = shl_pty_dispatch(pty);
-      if (r<0) {
-        printf("pty dispatch error %d\n", r);
+      if (r == -5 ) {
+        printf("%d: %s\n", r, strerror(r));
+        perror("pty error: ");
         done = 1;
       }
     }
