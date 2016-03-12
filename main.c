@@ -79,38 +79,37 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
 {
   int i;
   int h;
-  int lh=fh-2;
-  int lw=fh-8;
+  int lh=fh;
+  int lw=fh-(fh / 3);
   int dx=posx*lw, dy=(posy*lh);
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
   h = SDL_GetVideoInfo()->current_h;
   dy = h-(posy*fh)-fh;
   if (attr->inverse) {
-          fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
+    fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
   } else {
-          fr = attr->fr; fg = attr->fg; fb = attr->fb; br = attr->br; bg = attr->bg; bb = attr->bb;
+    fr = attr->fr; fg = attr->fg; fb = attr->fb; br = attr->br; bg = attr->bg; bb = attr->bb;
   }
   if (!len) {
-    if (attr->inverse) {
-      sprintf(buf,"_");
-      sth_draw_text(data, 3, fh, dx+4,dy+4,buf,&dx);
-    }
-#if 0
+#if 1
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+0,dy+0,dx+lh,dy+lh);
+    glRectf(dx+0,dy+0,dx+lw,dy+lh);
 #endif
   } else {
-#if 0
+#if 1
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+0,dy+0,dx+lh,dy+lh);
+    glRectf(dx+0,dy+0,dx+lw,dy+lh);
 #endif
+    glColor4ub(fr,fg,fb,255);
     /*if (age2 == 0 || age2 <= age) return 0;*/
     for (i=0; i < len;i+=cwidth)  {
       sprintf(buf,"%c",ch[i]);
-      sth_draw_text(data, 3, fh, dx+4,dy+4,buf,&dx);
+      sth_begin_draw(data);
+      sth_draw_text(data, 3, fh, dx+0,dy+(fh/4),buf,&dx);
+      sth_end_draw(data);
     }
   }
   return 0;
@@ -217,6 +216,7 @@ int main(int argc, char *argv[])
   done = 0;
   while (!done)
   {
+    struct tsm_screen_attr attr;
     while (SDL_PollEvent(&event))
     {
       SDL_keysym k = event.key.keysym;
@@ -249,8 +249,9 @@ int main(int argc, char *argv[])
           break;
       }
     }
+    tsm_vte_get_def_attr(vte, &attr);
     glViewport(0, 0, width, height);
-    glClearColor(0.1, 0.1, 0.1, 1.0f);
+    glClearColor(attr.br, attr.bg, attr.bb, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -261,13 +262,11 @@ int main(int argc, char *argv[])
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
-    glColor4ub(255,255,255,255);
+    glColor4ub(attr.fr,attr.fg,attr.fb,255);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
  
-    sth_begin_draw(stash);
     screen_age = tsm_screen_draw(console, draw_cb, stash);
-    sth_end_draw(stash);
     glEnable(GL_DEPTH_TEST);
     
     SDL_GL_SwapBuffers();
