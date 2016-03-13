@@ -31,11 +31,11 @@
 
 #include "SDL.h"
 #include "SDL_opengl.h"
-#include "libtsm.h"
 #include "fontstash.h"
-#include "shl-pty.h"
 
-#define FONT_DIR  "/usr/share/fonts/TTF/"
+#include "libtsm.h"
+#include "shl-pty.h"
+#include "external/xkbcommon-keysyms.h"
 
 extern char **environ;
 
@@ -148,14 +148,14 @@ int main(int argc, char *argv[])
     return -1;
   }
   SDL_EnableUNICODE(1);  /* for .keysym.unicode */
-  SDL_WM_SetCaption("FontStash Demo", 0);
+  SDL_WM_SetCaption("libtsm/fontstash terminal", 0);
   SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
   stash = sth_create(512,512);
   if (!stash) {
     printf("Could not create stash.\n");
     return -1;
   }
-  if (!sth_add_font(stash,0,FONT_DIR "VeraMono.ttf")) {
+  if (!sth_add_font(stash,0, "VeraMono.ttf")) {
     printf("Could not add font.\n");
     return -1;
   }
@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
     if (SDL_WaitEvent(&event)) {
       SDL_keysym k = event.key.keysym;
       unsigned int mods = 0;
+      unsigned int scancode = k.scancode;
       switch (event.type) {
         case SDL_MOUSEMOTION:
           break;
@@ -216,9 +217,19 @@ int main(int argc, char *argv[])
           if (k.mod & KMOD_SHIFT) mods |= TSM_SHIFT_MASK;
           if (k.mod & KMOD_ALT)   mods |= TSM_ALT_MASK;
           if (k.mod & KMOD_META)  mods |= TSM_LOGO_MASK;
-          if(k.unicode != 0) {
+          /* map cursor keys to XKB scancodes to be escaped by libtsm vte */
+          if (k.sym == SDLK_UP) scancode = XKB_KEY_Up;
+          if (k.sym == SDLK_DOWN) scancode = XKB_KEY_Down;
+          if (k.sym == SDLK_LEFT) scancode = XKB_KEY_Left;
+          if (k.sym == SDLK_RIGHT) scancode = XKB_KEY_Right;
+          if(k.unicode != 0 || 
+              (scancode==XKB_KEY_Up || 
+                scancode==XKB_KEY_Down || 
+                scancode==XKB_KEY_Left || 
+                scancode==XKB_KEY_Right)) {
             /* only handle when there's non-zero unicode keypress... found using vim */
-            tsm_vte_handle_keyboard(vte, k.scancode, k.sym, mods, k.unicode);
+            /*printf("scancode: %d  sym: %d  unicode: %d\n", scancode, k.sym, k.unicode);*/
+            tsm_vte_handle_keyboard(vte, scancode, k.sym, mods, k.unicode);
           }
           break;
         /*case SDL_TEXTINPUT:*/
