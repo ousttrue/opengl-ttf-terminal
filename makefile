@@ -10,6 +10,8 @@ else
   $(shell exit 2)
 endif
 
+GIT = /usr/bin/git
+
 CFLAGS += -g -Wall
 CFLAGS += -I./libtsm/src/tsm -I./libtsm/src/shared -I./libtsm
 CFLAGS += `sdl-config --cflags`
@@ -24,6 +26,10 @@ SRC = $(TSM) fontstash.c main.c
 OBJ = $(SRC:.c=.o)
 BIN = togl
 
+SUBMODULES := $(shell $(GIT) submodule init; $(GIT) submodule update)
+
+.PHONY: clean
+
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
 
@@ -32,5 +38,6 @@ $(BIN): $(OBJ)
 
 clean:
 	rm -vf $(BIN) $(OBJ)
+	rm -vrf libtsm
 
-.PHONY: clean
+
