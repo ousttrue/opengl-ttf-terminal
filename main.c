@@ -39,6 +39,7 @@
 
 extern char **environ;
 
+int width,height;
 int fh = 21; /* font height */
 
 struct tsm_screen *console;
@@ -49,6 +50,7 @@ struct shl_pty *pty;
 void io_handler(int s) {
   SDL_Event e;
   e.type = SDL_USEREVENT;
+  e.user.code = s;
   SDL_PushEvent(&e);
 }
 
@@ -83,14 +85,12 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
                    tsm_age_t age, void *data)
 {
   int i;
-  int h;
   int lh=fh;
   int lw=(fh / 2);
   float dx=posx*lw, dy=(posy*lh);
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
-  h = SDL_GetVideoInfo()->current_h;
-  dy = h-(posy*fh)-fh;
+  dy = height - (posy*fh)-fh;
   if (attr->inverse) {
     fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
   } else {
@@ -121,7 +121,6 @@ int main(int argc, char *argv[])
   SDL_Event event;
   SDL_Surface* screen;
   const SDL_VideoInfo* vi;
-  int width,height;
   struct sth_stash* stash = 0;
   pid_t pid;
   unsigned int ticks;
@@ -257,6 +256,8 @@ int main(int argc, char *argv[])
           break;
         case SDL_USEREVENT: /* sigio - something to read */
           break;
+        case SDL_ACTIVEEVENT:
+          break;
       }
     }
 
@@ -270,6 +271,8 @@ int main(int argc, char *argv[])
     }
 
     if (SDL_GetTicks() <= (ticks+50))
+      continue;
+    if ( (SDL_GetAppState() & SDL_APPACTIVE) == 0)
       continue;
     ticks= SDL_GetTicks();
 
