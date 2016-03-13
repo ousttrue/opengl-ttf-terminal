@@ -3,6 +3,7 @@
 CFLAGS += -g -Wall
 CFLAGS += -I./libtsm/src/tsm -I./libtsm/src/shared -I./libtsm
 CFLAGS += `sdl-config --cflags`
+CFLAGS += -pg 
 
 LFLAGS += `sdl-config --libs`
 LFLAGS += -lm -lGL
