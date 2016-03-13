@@ -1,3 +1,8 @@
+/* experimental terminal window using libSDL, OpenGL, stb_truetype, fontstash, and libtsm
+ * Copyright (c) 2016 A. Carl Douglas
+ */
+
+
 //
 // Copyright (c) 2009 Mikko Mononen memon@inside.org
 //
@@ -20,6 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <signal.h>
+#include <fcntl.h>
 #include <assert.h>
 
 #include "SDL.h"
@@ -32,19 +39,31 @@
 
 extern char **environ;
 
-int fh = 21;
+int fh = 21; /* font height */
 
 struct tsm_screen *console;
 struct tsm_vte *vte;
 tsm_age_t screen_age;
+struct shl_pty *pty;
 
-struct shl_pty *pty = 0;
+void io_handler(int s) {
+  SDL_Event e;
+  e.type = SDL_USEREVENT;
+  SDL_PushEvent(&e);
+}
 
-static void term_read_cb(struct shl_pty *pty,
-                                  void *data,
-                                  char *u8,
-                                  size_t len) {
+/* called when data has been read from the fd slave -> master  (vte input )*/
+static void term_read_cb(struct shl_pty *pty, void *data, char *u8, size_t len) {
   tsm_vte_input(vte, u8, len);
+}
+
+/* called when there is data to be written to the fd master -> slave  (vte output) */
+static void term_write_cb(struct tsm_vte *vtelocal, const char *u8, size_t len, void *data) {
+  int r;
+  r = shl_pty_write(pty, u8, len);
+  if (r < 0) {
+    printf ("could not write to pty, %d\n", r);
+  }
 }
 
 static void log_tsm(void *data, const char *file, int line, const char *fn,
@@ -54,14 +73,6 @@ static void log_tsm(void *data, const char *file, int line, const char *fn,
   fprintf(stderr, "%d: %s: ", sev, subs);
   vfprintf(stderr, format, args);
   fprintf(stderr, "\n");
-}
-
-static void term_write_cb(struct tsm_vte *vtelocal, const char *u8, size_t len, void *data) {
-  int r;
-  r = shl_pty_write(pty, u8, len);
-  if (r < 0) {
-    printf ("could not write to pty, %d\n", r);
-  }
 }
 
 static int draw_cb(struct tsm_screen *screen, uint32_t id,
@@ -75,7 +86,7 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
   int h;
   int lh=fh;
   int lw=(fh / 2);
-  int dx=posx*lw, dy=(posy*lh);
+  float dx=posx*lw, dy=(posy*lh);
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
   h = SDL_GetVideoInfo()->current_h;
@@ -94,11 +105,10 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
     glPolygonMode(GL_FRONT, GL_FILL);
     glRectf(dx+0,dy+0,dx+lw,dy+lh);
     glColor4ub(fr,fg,fb,255);
-    /*if (age2 == 0 || age2 <= age) return 0;*/
     for (i=0; i < len;i+=cwidth)  {
       sprintf(buf,"%c",ch[i]);
       sth_begin_draw(data);
-      sth_draw_text(data, 3, fh, dx+0,dy+(fh/4),buf,&dx);
+      sth_draw_text(data, 0, fh, dx, dy + (fh/4), buf, & dx );
       sth_end_draw(data);
     }
   }
@@ -139,33 +149,16 @@ int main(int argc, char *argv[])
   }
   SDL_EnableUNICODE(1);  /* for .keysym.unicode */
   SDL_WM_SetCaption("FontStash Demo", 0);
-
+  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
   stash = sth_create(512,512);
-  if (!stash)
-  {
+  if (!stash) {
     printf("Could not create stash.\n");
     return -1;
   }
-  if (!sth_add_font(stash,0,FONT_DIR "DroidSerif-Regular.ttf"))
-  {
+  if (!sth_add_font(stash,0,FONT_DIR "VeraMono.ttf")) {
     printf("Could not add font.\n");
     return -1;
   }
-  if (!sth_add_font(stash,1,FONT_DIR "DroidSerif-Italic.ttf"))
-  {
-    printf("Could not add font.\n");
-    return -1;
-  }  
-  if (!sth_add_font(stash,2,FONT_DIR "DroidSerif-Bold.ttf"))
-  {
-    printf("Could not add font.\n");
-    return -1;
-  }  
-  if (!sth_add_font(stash,3,FONT_DIR "DroidSansMono.ttf"))
-  {
-    printf("Could not add font.\n");
-    return -1;
-  }  
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
@@ -184,8 +177,17 @@ int main(int argc, char *argv[])
   if (pid < 0) {
     perror("fork problem");
   } else if (pid != 0 ) {
-    /* parent */
-    printf("OpenGL/TTF Terminal [%d]\n", pid);
+    /* parent, pty master */
+    int fd = shl_pty_get_fd(pty);
+    unsigned oflags;
+    printf("OpenGL/TTF Terminal [%d] [%d]\n", pid, fd);
+#if 1
+    /* enable SIGIO signal for this process when it has a ready file descriptor */
+    signal(SIGIO, &io_handler);
+    fcntl(shl_pty_get_fd(pty), F_SETOWN, getpid(  ));
+    oflags = fcntl(shl_pty_get_fd(pty), F_GETFL);
+    fcntl(shl_pty_get_fd(pty), F_SETFL, oflags | FASYNC);
+#endif
   } else {
     char **argv = (char*[]) {
                 getenv("SHELL") ? : "/bin/bash",
@@ -198,18 +200,13 @@ int main(int argc, char *argv[])
     if (r < 0) { perror("execve failed"); }
     exit(1);
   }
-
   done = 0;
-  while (!done)
-  {
+  while (!done) {
     struct tsm_screen_attr attr;
-    while (SDL_PollEvent(&event))
-    {
+    if (SDL_WaitEvent(&event)) {
       SDL_keysym k = event.key.keysym;
-      unsigned int xkbsym = 0;
       unsigned int mods = 0;
-      switch (event.type)
-      {
+      switch (event.type) {
         case SDL_MOUSEMOTION:
           break;
         case SDL_MOUSEBUTTONDOWN:
@@ -219,20 +216,27 @@ int main(int argc, char *argv[])
           if (k.mod & KMOD_SHIFT) mods |= TSM_SHIFT_MASK;
           if (k.mod & KMOD_ALT)   mods |= TSM_ALT_MASK;
           if (k.mod & KMOD_META)  mods |= TSM_LOGO_MASK;
-          if (k.sym == SDLK_ESCAPE)
-            done = 1;
-          else
-            tsm_vte_handle_keyboard(vte, xkbsym, k.unicode, mods, k.unicode);
-          /*tsm_screen_write(console, k.unicode, 0);*/
+          if(k.unicode != 0) {
+            /* only handle when there's non-zero unicode keypress... found using vim */
+            tsm_vte_handle_keyboard(vte, k.scancode, k.sym, mods, k.unicode);
+          }
           break;
         /*case SDL_TEXTINPUT:*/
-          /*printf("SDL TEXT\n");*/
           break;
         case SDL_QUIT:
-          /*done = 1;*/
+          done = 1;
           break;
-        default:
+        case SDL_USEREVENT: /* sigio - something to read */
           break;
+      }
+    }
+
+    {
+      int r = shl_pty_dispatch(pty);
+      if (r == -5 ) {
+        printf("%d: %s\n", r, strerror(r));
+        perror("pty error: ");
+        done = 1;
       }
     }
     tsm_vte_get_def_attr(vte, &attr);
@@ -256,17 +260,6 @@ int main(int argc, char *argv[])
     glEnable(GL_DEPTH_TEST);
     
     SDL_GL_SwapBuffers();
-
-    SDL_Delay(20);
-
-    {
-      int r = shl_pty_dispatch(pty);
-      if (r == -5 ) {
-        printf("%d: %s\n", r, strerror(r));
-        perror("pty error: ");
-        done = 1;
-      }
-    }
   }
   shl_pty_close(pty);
   

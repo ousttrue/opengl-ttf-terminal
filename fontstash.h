@@ -36,4 +36,8 @@ void sth_vmetrics(struct sth_stash* stash,
 
 void sth_delete(struct sth_stash* stash);
 
+void sth_begin_draw(struct sth_stash* stash);
+
+void sth_end_draw(struct sth_stash* stash);
+
 #endif // FONTSTASH_H
