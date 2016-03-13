@@ -124,12 +124,30 @@ int main(int argc, char *argv[])
   int width,height;
   struct sth_stash* stash = 0;
   pid_t pid;
+  unsigned int ticks;
+  int opt;
+  char *fontfile = "VeraMono.ttf";
+  while ((opt = getopt(argc, argv, "f:s:")) != -1) {
+       switch (opt) {
+       case 'f':
+           fontfile = optarg;
+           break;
+       case 's':
+           fh = atoi(optarg);
+           break; 
+       default: /* '?' */
+           fprintf(stderr, "Usage: %s [-f ttf file] [-s font size]\n", argv[0]);
+           exit(EXIT_FAILURE);
+       }
+   }
+
 
   if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
   {
     fprintf(stderr, "Couldn't initialize SDL: %s\n", SDL_GetError());
     return -1;
   }
+  ticks = SDL_GetTicks();
 
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
@@ -155,7 +173,7 @@ int main(int argc, char *argv[])
     printf("Could not create stash.\n");
     return -1;
   }
-  if (!sth_add_font(stash,0, "VeraMono.ttf")) {
+  if (!sth_add_font(stash,0, fontfile)) {
     printf("Could not add font.\n");
     return -1;
   }
@@ -250,12 +268,19 @@ int main(int argc, char *argv[])
         done = 1;
       }
     }
+
+    if (SDL_GetTicks() <= (ticks+50))
+      continue;
+    ticks= SDL_GetTicks();
+
     tsm_vte_get_def_attr(vte, &attr);
     glViewport(0, 0, width, height);
     glClearColor(attr.br, attr.bg, attr.bb, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+#if 1
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#endif
     glDisable(GL_TEXTURE_2D);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -264,8 +289,10 @@ int main(int argc, char *argv[])
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
     glColor4ub(attr.fr,attr.fg,attr.fb,255);
+#if 0
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+#endif
  
     screen_age = tsm_screen_draw(console, draw_cb, stash);
     glEnable(GL_DEPTH_TEST);
