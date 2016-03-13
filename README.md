@@ -10,4 +10,25 @@ This is made possible using open source code:
 * [https://www.libsdl.org/] for window creation and keyboard event handling
 * [https://www.opengl.org/] for scene rendering
 
-2016
+
+## Build instructions
+
+On Linux,
+
+    git submodule init
+    git submodule update
+    make
+
+And run,
+
+    ./togl
+
+
+
+## Known issues
+
+* It's slow...
+
+
+
+2016 A. Carl Douglas
