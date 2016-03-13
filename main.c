@@ -41,6 +41,7 @@ extern char **environ;
 
 int width,height;
 int fh = 21; /* font height */
+float min_gw,min_gh,max_gw,max_gh; /* glyph width, height */
 
 struct tsm_screen *console;
 struct tsm_vte *vte;
@@ -85,12 +86,12 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
                    tsm_age_t age, void *data)
 {
   int i;
-  int lh=fh;
-  int lw=(fh / 2);
-  float dx=posx*lw, dy=(posy*lh);
+  int lh=max_gh;
+  int lw=max_gw;
+  float dx=posx*lw, dy=posy*lh;
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
-  dy = height - (posy*fh)-fh;
+  dy = height - (posy*fh)-fh; /* pixel zero is opposite row zero */
   if (attr->inverse) {
     fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
   } else {
@@ -99,16 +100,16 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
   if (!len) {
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+0,dy+0,dx+lw,dy+lh);
+    glRectf(dx+0,dy+0,dx+lw,dy+fh);
   } else {
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+0,dy+0,dx+lw,dy+lh);
+    glRectf(dx+0,dy+0,dx+lw,dy+fh);
     glColor4ub(fr,fg,fb,255);
     for (i=0; i < len;i+=cwidth)  {
       sprintf(buf,"%c",ch[i]);
       sth_begin_draw(data);
-      sth_draw_text(data, 0, fh, dx, dy + (fh/4), buf, & dx );
+      sth_draw_text(data, 0, fh, dx, dy + (fh / 4), buf, & dx );
       sth_end_draw(data);
     }
   }
@@ -167,6 +168,7 @@ int main(int argc, char *argv[])
   SDL_EnableUNICODE(1);  /* for .keysym.unicode */
   SDL_WM_SetCaption("libtsm/fontstash terminal", 0);
   SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+
   stash = sth_create(512,512);
   if (!stash) {
     printf("Could not create stash.\n");
@@ -176,6 +178,8 @@ int main(int argc, char *argv[])
     printf("Could not add font.\n");
     return -1;
   }
+  /* measure a character to determine the glyph box size */
+  sth_dim_text(stash, 0, fh, "W", &min_gw, &min_gh, &max_gw, &max_gh);
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
