@@ -34,7 +34,7 @@
 #include "fontstash.h"
 
 #include "libtsm.h"
-#include "shl-pty.h"
+#include "shl_pty.h"
 #include "external/xkbcommon-keysyms.h"
 
 extern char **environ;
@@ -56,7 +56,7 @@ void io_handler(int s) {
 }
 
 /* called when data has been read from the fd slave -> master  (vte input )*/
-static void term_read_cb(struct shl_pty *pty, void *data, char *u8, size_t len) {
+static void term_read_cb(struct shl_pty *pty, char *u8, size_t len, void *data) {
   tsm_vte_input(vte, u8, len);
 }
 

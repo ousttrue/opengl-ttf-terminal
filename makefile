@@ -12,21 +12,20 @@ endif
 
 GIT = /usr/bin/git
 
-CFLAGS += -g -Wall
-CFLAGS += -I./libtsm/src/tsm -I./libtsm/src/shared -I./libtsm
+CFLAGS += -g -Wall -O2
+CFLAGS += -I./libtsm/src -I./libtsm -I./libshl/src
 CFLAGS += `sdl-config --cflags`
 CFLAGS += -pg 
 
 LFLAGS += `sdl-config --libs`
 LFLAGS += -lm -lGL
 
-TSM = $(wildcard libtsm/src/tsm/*.c) $(wildcard libtsm/external/*.c) $(wildcard libtsm/src/shared/*.c)
+TSM = $(wildcard libtsm/src/*.c) $(wildcard libtsm/external/*.c) 
+SHL = libshl/src/shl_pty.c
 
-SRC = $(TSM) fontstash.c main.c
+SRC = $(SHL) $(TSM) fontstash.c main.c
 OBJ = $(SRC:.c=.o)
 BIN = togl
-
-SUBMODULES := $(shell $(GIT) submodule init; $(GIT) submodule update)
 
 .PHONY: clean
 
@@ -38,6 +37,5 @@ $(BIN): $(OBJ)
 
 clean:
 	rm -vf $(BIN) $(OBJ)
-	rm -vrf libtsm
 
 
