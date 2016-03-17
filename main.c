@@ -55,6 +55,11 @@ static struct tsm_vte *vte;
 static struct shl_pty *pty;
 static tsm_age_t screen_age;
 
+void hup_handler(int s) {
+  printf("Got %s\n", strsignal(s));
+  exit(1);
+}
+
 void io_handler(int s) {
   SDL_Event e;
   e.type = SDL_USEREVENT;
@@ -193,6 +198,8 @@ int main(int argc, char *argv[])
     fcntl(fd, F_SETOWN, getpid(  ));
     oflags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, oflags | FASYNC);
+    /* watch for SIGHUP */
+    signal(SIGCHLD, &hup_handler);
   } else {
     /* child, shell */
     char **argv = (char*[]) {
@@ -295,7 +302,7 @@ int main(int argc, char *argv[])
 
     {
       int r = shl_pty_dispatch(pty);
-      if (r < 0 || !shl_pty_is_open(pty)) {
+      if (r < 0) {
         printf("%d: %s\n", r, strerror(r));
         perror("pty error: ");
         done = 1;
