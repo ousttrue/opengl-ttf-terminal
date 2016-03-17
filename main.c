@@ -27,11 +27,14 @@
 #include <math.h>
 #include <signal.h>
 #include <fcntl.h>
-#include <assert.h>
 
 #include "SDL.h"
 #include "SDL_opengl.h"
+
+#define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
+#define GLFONTSTASH_IMPLEMENTATION
+#include "glfontstash.h"
 
 #include "libtsm.h"
 #include "shl_pty.h"
@@ -39,20 +42,26 @@
 
 extern char **environ;
 
-int width,height;
-int fh = 21; /* font height */
-float min_gw,min_gh,max_gw,max_gh; /* glyph width, height */
+static int width, height;
+static float fh = 21.0f; /* font height */
+static float bounds[4]; /* glyph width, height */
+static float advance;
 
-struct tsm_screen *console;
-struct tsm_vte *vte;
-tsm_age_t screen_age;
-struct shl_pty *pty;
+static struct tsm_screen *console;
+static struct tsm_vte *vte;
+static struct shl_pty *pty;
+static tsm_age_t screen_age;
 
 void io_handler(int s) {
   SDL_Event e;
   e.type = SDL_USEREVENT;
   e.user.code = s;
   SDL_PushEvent(&e);
+}
+
+void fonsError(void* uptr, int error, int val) {
+  printf("FONT ERROR: %d --- %d\n", error, val);
+  exit(-1);
 }
 
 /* called when data has been read from the fd slave -> master  (vte input )*/
@@ -86,12 +95,12 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
                    tsm_age_t age, void *data)
 {
   int i;
-  int lh=max_gh;
-  int lw=max_gw;
+  int lh=fh; // bounds[2] - bounds[0];
+  int lw=(bounds[3] - bounds[1]) / 1.5f;
   float dx=posx*lw, dy=posy*lh;
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
-  dy = height - (posy*fh)-fh; /* pixel zero is opposite row zero */
+  unsigned int color;
   if (attr->inverse) {
     fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
   } else {
@@ -100,17 +109,17 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
   if (!len) {
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+0,dy+0,dx+lw,dy+fh);
+    glRectf(dx+lw,dy,dx,dy+lh);
   } else {
     glColor4ub(br,bg,bb,255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+0,dy+0,dx+lw,dy+fh);
-    glColor4ub(fr,fg,fb,255);
-    for (i=0; i < len;i+=cwidth)  {
+    glRectf(dx+lw,dy,dx,dy+lh);
+
+    color = glfonsRGBA(fr,fg,fb,255);
+    fonsSetColor(data, color);
+    for (i = 0; i < len; i += cwidth)  {
       sprintf(buf,"%c",ch[i]);
-      sth_begin_draw(data);
-      sth_draw_text(data, 0, fh, dx, dy + (fh / 4), buf, & dx );
-      sth_end_draw(data);
+      dx = fonsDrawText(data, dx, dy + lh /*((bounds[2]-bounds[0]))*/, buf, NULL);
     }
   }
   return 0;
@@ -122,69 +131,42 @@ int main(int argc, char *argv[])
   SDL_Event event;
   SDL_Surface* screen;
   const SDL_VideoInfo* vi;
-  struct sth_stash* stash = 0;
+  FONScontext* stash = NULL;
+  int fontNormal = FONS_INVALID;
   pid_t pid;
   unsigned int ticks;
   int opt;
-  char *fontfile = "VeraMono.ttf";
+  const char *fontfile = "VeraMono.ttf";
+  struct tsm_screen_attr attr;
+
   while ((opt = getopt(argc, argv, "f:s:")) != -1) {
-       switch (opt) {
-       case 'f':
-           fontfile = optarg;
-           break;
-       case 's':
-           fh = atoi(optarg);
-           break; 
-       default: /* '?' */
-           fprintf(stderr, "Usage: %s [-f ttf file] [-s font size]\n", argv[0]);
-           exit(EXIT_FAILURE);
-       }
-   }
+    switch (opt) {
+    case 'f':
+       fontfile = optarg;
+       break;
+    case 's':
+       fh = atoi(optarg);
+       break; 
+    default: /* '?' */
+       fprintf(stderr, "Usage: %s [-f ttf file] [-s font size]\n", argv[0]);
+       exit(EXIT_FAILURE);
+    }
+  }
+  printf("Using: %s    at: %f \n", fontfile, fh);
 
-
-  if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
-  {
+  if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
     fprintf(stderr, "Couldn't initialize SDL: %s\n", SDL_GetError());
     return -1;
   }
   ticks = SDL_GetTicks();
 
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-  
   vi = SDL_GetVideoInfo();
   width = vi->current_w - 20;
   height = vi->current_h - 80;
-  screen = SDL_SetVideoMode(width, height, 0, SDL_OPENGL);
-  if (!screen)
-  {
-    printf("Could not initialise SDL opengl\n");
-    return -1;
-  }
-  SDL_EnableUNICODE(1);  /* for .keysym.unicode */
-  SDL_WM_SetCaption("libtsm/fontstash terminal", 0);
-  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-
-  stash = sth_create(512,512);
-  if (!stash) {
-    printf("Could not create stash.\n");
-    return -1;
-  }
-  if (!sth_add_font(stash,0, fontfile)) {
-    printf("Could not add font.\n");
-    return -1;
-  }
-  /* measure a character to determine the glyph box size */
-  sth_dim_text(stash, 0, fh, "W", &min_gw, &min_gh, &max_gw, &max_gh);
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
-  tsm_screen_resize(console, (width / (fh / 2))-1, (height / fh)-1);
-  assert(vte != 0);
+  tsm_screen_resize(console, (width / (fh / 2.0f))-1, (height / fh)-1);
   printf("console width: %d\n", tsm_screen_get_width(console));
   printf("console height: %d\n", tsm_screen_get_height(console));
 
@@ -200,16 +182,15 @@ int main(int argc, char *argv[])
   } else if (pid != 0 ) {
     /* parent, pty master */
     int fd = shl_pty_get_fd(pty);
-    unsigned oflags;
+    unsigned oflags = 0;
     printf("OpenGL/TTF Terminal [%d] [%d]\n", pid, fd);
-#if 1
     /* enable SIGIO signal for this process when it has a ready file descriptor */
     signal(SIGIO, &io_handler);
-    fcntl(shl_pty_get_fd(pty), F_SETOWN, getpid(  ));
-    oflags = fcntl(shl_pty_get_fd(pty), F_GETFL);
-    fcntl(shl_pty_get_fd(pty), F_SETFL, oflags | FASYNC);
-#endif
+    fcntl(fd, F_SETOWN, getpid(  ));
+    oflags = fcntl(fd, F_GETFL);
+    fcntl(fd, F_SETFL, oflags | FASYNC);
   } else {
+    /* child, shell */
     char **argv = (char*[]) {
                 getenv("SHELL") ? : "/bin/bash",
                 NULL
@@ -221,19 +202,61 @@ int main(int argc, char *argv[])
     if (r < 0) { perror("execve failed"); }
     exit(1);
   }
+
+  if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
+    fprintf(stderr, "Couldn't initialize SDL: %s\n", SDL_GetError());
+    return -1;
+  }
+  ticks = SDL_GetTicks();
+
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+  screen = SDL_SetVideoMode(width, height, 0, SDL_OPENGL);
+  if (!screen) {
+    printf("Could not initialise SDL opengl\n");
+    return -1;
+  }
+  SDL_EnableUNICODE(1);  /* for .keysym.unicode */
+  SDL_WM_SetCaption("libtsm/fontstash terminal", 0);
+  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+
+  stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
+  if (stash == NULL) {
+    printf("Could not create stash.\n");
+    return -1;
+  }
+
+  fonsSetErrorCallback(stash, fonsError, stash);
+
+  fontNormal = fonsAddFont(stash, "sans", fontfile);
+  if (fontNormal == FONS_INVALID) {
+    printf("Could not add font.\n");
+    return -1;
+  }
+  /* measure a character to determine the glyph box size */
+  fonsClearState(stash);
+  fonsSetFont(stash, fontNormal);
+  fonsSetSize(stash, fh);
+  advance = fonsTextBounds(stash, 0, 0, "W", NULL, bounds);
+
   done = 0;
   while (!done) {
-    struct tsm_screen_attr attr;
     if (SDL_WaitEvent(&event)) {
-      SDL_keysym k = event.key.keysym;
+      SDL_keysym k;
       unsigned int mods = 0;
-      unsigned int scancode = k.scancode;
+      unsigned int scancode = 0;
       switch (event.type) {
         case SDL_MOUSEMOTION:
           break;
         case SDL_MOUSEBUTTONDOWN:
           break;
         case SDL_KEYDOWN:
+          k = event.key.keysym;
+          scancode = k.scancode;
           if (k.mod & KMOD_CTRL)  mods |= TSM_CONTROL_MASK;
           if (k.mod & KMOD_SHIFT) mods |= TSM_SHIFT_MASK;
           if (k.mod & KMOD_ALT)   mods |= TSM_ALT_MASK;
@@ -267,7 +290,7 @@ int main(int argc, char *argv[])
 
     {
       int r = shl_pty_dispatch(pty);
-      if (r == -5 ) {
+      if (r < 0 || !shl_pty_is_open(pty)) {
         printf("%d: %s\n", r, strerror(r));
         perror("pty error: ");
         done = 1;
@@ -276,34 +299,34 @@ int main(int argc, char *argv[])
 
     if (SDL_GetTicks() <= (ticks+50))
       continue;
+/*
     if ( (SDL_GetAppState() & SDL_APPACTIVE) == 0)
       continue;
-    ticks= SDL_GetTicks();
+*/
+    ticks = SDL_GetTicks();
 
     tsm_vte_get_def_attr(vte, &attr);
     glViewport(0, 0, width, height);
     glClearColor(attr.br, attr.bg, attr.bb, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-#if 1
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
     glDisable(GL_TEXTURE_2D);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0,width,0,height,-1,1);
+    glOrtho(0,width,height,0,-1,1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
-    glColor4ub(attr.fr,attr.fg,attr.fb,255);
-#if 0
+    //glColor4ub(255,255,255,255);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-#endif
- 
+    glEnable(GL_CULL_FACE);
+
+    fonsClearState(stash);
+    fonsSetFont(stash, fontNormal);
+    fonsSetSize(stash, fh);
     screen_age = tsm_screen_draw(console, draw_cb, stash);
-    glEnable(GL_DEPTH_TEST);
-    
     SDL_GL_SwapBuffers();
   }
   shl_pty_close(pty);
