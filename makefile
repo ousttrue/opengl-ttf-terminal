@@ -12,8 +12,8 @@ endif
 
 GIT = /usr/bin/git
 
-CFLAGS += -g -Wall -O2
-CFLAGS += -I./libtsm/src -I./libtsm -I./libshl/src
+CFLAGS += -g -Wall -O2 
+CFLAGS += -I./libtsm/src -I./libtsm -I./libshl/src -I./fontstash/src
 CFLAGS += `sdl-config --cflags`
 CFLAGS += -pg 
 
@@ -23,7 +23,7 @@ LFLAGS += -lm -lGL
 TSM = $(wildcard libtsm/src/*.c) $(wildcard libtsm/external/*.c) 
 SHL = libshl/src/shl_pty.c
 
-SRC = $(SHL) $(TSM) fontstash.c main.c
+SRC = $(SHL) $(TSM) main.c
 OBJ = $(SRC:.c=.o)
 BIN = togl
 
@@ -32,8 +32,8 @@ BIN = togl
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BIN): $(OBJ)
-	$(CC) -o $@ $^  $(LFLAGS)
+$(BIN): $(OBJ)  fontstash/src/fontstash.h fontstash/src/glfontstash.h
+	$(CC) -o $@ $(OBJ)  $(LFLAGS)
 
 clean:
 	rm -vf $(BIN) $(OBJ)
