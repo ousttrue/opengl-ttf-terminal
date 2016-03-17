@@ -98,9 +98,10 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
                    tsm_age_t age, void *data)
 {
   int i;
-  int lh=lineh; // bounds[2] - bounds[0];
-  int lw=(bounds[3] - bounds[1]) / 1.5f;
-  float dx=posx*lw, dy=posy*lh;
+  int lh=lineh;
+  int lw=(bounds[3] - bounds[1]);
+  float dx=posx*lw, 
+        dy=posy*lh;
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
   unsigned int color;
