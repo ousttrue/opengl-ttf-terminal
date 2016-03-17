@@ -44,6 +44,9 @@ extern char **environ;
 
 static int width, height;
 static float fh = 21.0f; /* font height */
+static float lineh;
+static float ascender;
+static float descender;
 static float bounds[4]; /* glyph width, height */
 static float advance;
 
@@ -95,7 +98,7 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
                    tsm_age_t age, void *data)
 {
   int i;
-  int lh=fh; // bounds[2] - bounds[0];
+  int lh=lineh; // bounds[2] - bounds[0];
   int lw=(bounds[3] - bounds[1]) / 1.5f;
   float dx=posx*lw, dy=posy*lh;
   char buf[32];
@@ -119,7 +122,7 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
     fonsSetColor(data, color);
     for (i = 0; i < len; i += cwidth)  {
       sprintf(buf,"%c",ch[i]);
-      dx = fonsDrawText(data, dx, dy + lh /*((bounds[2]-bounds[0]))*/, buf, NULL);
+      dx = fonsDrawText(data, dx, dy + ascender /*((bounds[2]-bounds[0]))*/, buf, NULL);
     }
   }
   return 0;
@@ -242,6 +245,7 @@ int main(int argc, char *argv[])
   fonsSetFont(stash, fontNormal);
   fonsSetSize(stash, fh);
   advance = fonsTextBounds(stash, 0, 0, "W", NULL, bounds);
+  fonsVertMetrics(stash, &ascender, &descender, &lineh);
 
   done = 0;
   while (!done) {
