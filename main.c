@@ -254,6 +254,7 @@ int main(int argc, char *argv[])
   fonsSetSize(stash, fh);
   advance = fonsTextBounds(stash, 0, 0, "W", NULL, bounds);
   fonsVertMetrics(stash, &ascender, &descender, &lineh);
+  tsm_screen_resize(console, (width / (bounds[2]-bounds[0])), (height / lineh)-1);
 
   done = 0;
   while (!done) {
