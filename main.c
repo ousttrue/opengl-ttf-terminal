@@ -301,14 +301,7 @@ int main(int argc, char *argv[])
       }
     }
 
-    {
-      int r = shl_pty_dispatch(pty);
-      if (r < 0) {
-        printf("%d: %s\n", r, strerror(r));
-        perror("pty error: ");
-        done = 1;
-      }
-    }
+    shl_pty_dispatch(pty);
 
     if (SDL_GetTicks() <= (ticks+50))
       continue;
