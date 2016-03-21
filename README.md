@@ -10,15 +10,13 @@ This is made possible using open source code:
 * [libsdl][4] for window creation and keyboard event handling
 * [opengl][5] for scene rendering
 
-![Screenshot](/screen.png?raw=true)
-
-Links:
-
 [1]: https://github.com/memononen/fontstash
 [2]: https://github.com/nothings/stb
 [3]: https://github.com/syuu1228/libtsm.git
 [4]: https://www.libsdl.org
 [5]: https://www.opengl.org
+
+![Screenshot](/screen.png?raw=true)
 
 
 ## Build instructions
