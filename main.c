@@ -42,7 +42,7 @@
 
 extern char **environ;
 
-static int width, height;
+static int width = 0, height = 0;
 static float fh = 21.0f; /* font height */
 static float lineh;
 static float ascender;
@@ -56,7 +56,7 @@ static struct shl_pty *pty;
 static tsm_age_t screen_age;
 
 void hup_handler(int s) {
-  printf("Got %s\n", strsignal(s));
+  printf("Signal received: %s\n", strsignal(s));
   exit(1);
 }
 
@@ -104,7 +104,7 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
 {
   int i;
   int lh=lineh;
-  int lw=(bounds[3] - bounds[1]);
+  int lw=(bounds[2] - bounds[0]);
   float dx=posx*lw, 
         dy=posy*lh;
   char buf[32];
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
   const char *fontfile = "VeraMono.ttf";
   struct tsm_screen_attr attr;
 
-  while ((opt = getopt(argc, argv, "f:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "f:s:g:")) != -1) {
     switch (opt) {
     case 'f':
        fontfile = optarg;
@@ -156,8 +156,12 @@ int main(int argc, char *argv[])
     case 's':
        fh = atoi(optarg);
        break; 
+    case 'g':
+       width = atoi(strtok(optarg, "x"));
+       height = atoi(strtok(NULL, "x"));
+      break; 
     default: /* '?' */
-       fprintf(stderr, "Usage: %s [-f ttf file] [-s font size]\n", argv[0]);
+       fprintf(stderr, "Usage: %s [-f ttf file] [-s font size] [-g geometry]\n", argv[0]);
        exit(EXIT_FAILURE);
     }
   }
@@ -170,8 +174,8 @@ int main(int argc, char *argv[])
   ticks = SDL_GetTicks();
 
   vi = SDL_GetVideoInfo();
-  width = vi->current_w - 20;
-  height = vi->current_h - 80;
+  if (width == 0) width = vi->current_w - 20;
+  if (height == 0) height = vi->current_h - 80;
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
@@ -192,7 +196,6 @@ int main(int argc, char *argv[])
     /* parent, pty master */
     int fd = shl_pty_get_fd(pty);
     unsigned oflags = 0;
-    printf("OpenGL/TTF Terminal [%d] [%d]\n", pid, fd);
     /* enable SIGIO signal for this process when it has a ready file descriptor */
     signal(SIGIO, &io_handler);
     fcntl(fd, F_SETOWN, getpid(  ));
@@ -208,7 +211,6 @@ int main(int argc, char *argv[])
         };
     int r;
     setenv("TERM", "vt100", 1);
-    printf("OpenGL-TTF terminal, %s\n", argv[0]);
     r = execve(argv[0], argv, environ);
     if (r < 0) { perror("execve failed"); }
     exit(1);
@@ -232,7 +234,7 @@ int main(int argc, char *argv[])
     return -1;
   }
   SDL_EnableUNICODE(1);  /* for .keysym.unicode */
-  SDL_WM_SetCaption("libtsm/fontstash terminal", 0);
+  SDL_WM_SetCaption("libtsm", 0);
   SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 
   stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
