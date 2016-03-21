@@ -179,9 +179,6 @@ int main(int argc, char *argv[])
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
-  tsm_screen_resize(console, (width / (fh / 2.0f))-1, (height / fh)-1);
-  printf("console width: %d\n", tsm_screen_get_width(console));
-  printf("console height: %d\n", tsm_screen_get_height(console));
 
   /* this call will fork */
   pid = shl_pty_open(&pty,
@@ -257,6 +254,8 @@ int main(int argc, char *argv[])
   advance = fonsTextBounds(stash, 0, 0, "W", NULL, bounds);
   fonsVertMetrics(stash, &ascender, &descender, &lineh);
   tsm_screen_resize(console, (width / (bounds[2]-bounds[0])), (height / lineh)-1);
+  printf("console width: %d\n", tsm_screen_get_width(console));
+  printf("console height: %d\n", tsm_screen_get_height(console));
 
   done = 0;
   while (!done) {
