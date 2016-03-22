@@ -12,6 +12,8 @@ endif
 
 GIT = /usr/bin/git
 
+CC = gcc
+
 CFLAGS += -g -Wall -O2 
 CFLAGS += -I./libtsm/src -I./libtsm -I./libshl/src -I./fontstash/src
 CFLAGS += `sdl-config --cflags`
