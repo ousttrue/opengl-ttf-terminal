@@ -18,25 +18,24 @@ This is made possible using open source code:
 
 ![Screenshot](/screen.png?raw=true)
 
-
 ## Build instructions
+
+* replace SDL-1.2 to latest GLFW
+* cmake build
 
 On Linux,
 
     git submodule init
     git submodule update
-    make
+    cmake -S . -B build
+    cmake --build build
 
 And run,
 
-    ./togl
-
-
+    ./build/togl
 
 ## Known issues
 
 * It's slow...
-
-
 
 2016 A. Carl Douglas

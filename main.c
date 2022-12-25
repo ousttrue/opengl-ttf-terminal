@@ -28,17 +28,16 @@
 #include <signal.h>
 #include <fcntl.h>
 
-#include "SDL.h"
-#include "SDL_opengl.h"
+#include <GLFW/glfw3.h>
 
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
 #define GLFONTSTASH_IMPLEMENTATION
 #include "glfontstash.h"
 
+#include "external/xkbcommon-keysyms.h"
 #include "libtsm.h"
 #include "shl_pty.h"
-#include "external/xkbcommon-keysyms.h"
 
 extern char **environ;
 
@@ -63,10 +62,7 @@ void hup_handler(int s) {
 }
 
 void io_handler(int s) {
-  SDL_Event e;
-  e.type = SDL_USEREVENT;
-  e.user.code = s;
-  SDL_PushEvent(&e);
+  // TODO
 }
 
 void fonsError(void* uptr, int error, int val) {
@@ -141,13 +137,9 @@ int main(int argc, char *argv[])
 {
   int done;
   int flags;
-  SDL_Event event;
-  SDL_Surface* screen;
-  const SDL_VideoInfo* vi;
-  FONScontext* stash = NULL;
+  FONScontext *stash = NULL;
   int fontNormal = FONS_INVALID;
   pid_t pid;
-  unsigned int ticks;
   int opt;
   const char *fontfile = "VeraMono.ttf";
   struct tsm_screen_attr attr;
@@ -155,34 +147,29 @@ int main(int argc, char *argv[])
   while ((opt = getopt(argc, argv, "f:s:g:m")) != -1) {
     switch (opt) {
     case 'f':
-       fontfile = optarg;
-       break;
+      fontfile = optarg;
+      break;
     case 's':
-       fh = atoi(optarg);
-       break; 
+      fh = atoi(optarg);
+      break;
     case 'g':
-       width = atoi(strtok(optarg, "x"));
-       height = atoi(strtok(NULL, "x"));
-      break; 
+      width = atoi(strtok(optarg, "x"));
+      height = atoi(strtok(NULL, "x"));
+      break;
     case 'm':
       fullscreen = 1;
       break;
     default: /* '?' */
        fprintf(stderr, "Usage: %s [-f ttf file] [-s font size] [-g geometry] [-m fullscreen mode]\n", argv[0]);
-       exit(EXIT_FAILURE);
+      exit(EXIT_FAILURE);
     }
   }
   printf("Using: %s    at: %f \n", fontfile, fh);
 
-  if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
-    fprintf(stderr, "Couldn't initialize SDL: %s\n", SDL_GetError());
+  if (!glfwInit()) {
+    fprintf(stderr, "glfwInit\n");
     return -1;
   }
-  ticks = SDL_GetTicks();
-
-  vi = SDL_GetVideoInfo();
-  if (width == 0)   width = vi->current_w;
-  if (height == 0)  height = vi->current_h;
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
@@ -192,7 +179,7 @@ int main(int argc, char *argv[])
                    term_read_cb,
                    NULL,
                    tsm_screen_get_width(console),
-                   tsm_screen_get_height(console));
+                     tsm_screen_get_height(console));
 
   if (pid < 0) {
     perror("fork problem");
@@ -217,36 +204,14 @@ int main(int argc, char *argv[])
     exit(-2);
   }
 
-  if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
-    fprintf(stderr, "Couldn't initialize SDL: %s\n", SDL_GetError());
-    return -1;
-  }
-  ticks = SDL_GetTicks();
-
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-
-  flags = SDL_OPENGL;
-  if (fullscreen) {
-    flags |= SDL_FULLSCREEN;
-    vi = SDL_GetVideoInfo();
-    width = vi->current_w;
-    height = vi->current_h;
-  }
-  screen = SDL_SetVideoMode(width, height, 0, flags);
-  if (!screen) {
-    printf("Could not initialise SDL opengl\n");
+  GLFWwindow *window = glfwCreateWindow(width, height, "libtsm", NULL, NULL);
+  if (!window) {
+    glfwTerminate();
     return -1;
   }
 
-  SDL_EnableUNICODE(1);  /* for .keysym.unicode */
-  SDL_WM_SetCaption("libtsm", 0);
-  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-
+  /* Make the window's context current */
+  glfwMakeContextCurrent(window);
   stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
   if (stash == NULL) {
     printf("Could not create stash.\n");
@@ -273,60 +238,60 @@ int main(int argc, char *argv[])
   printf("console width: %d\n", tsm_screen_get_width(console));
   printf("console height: %d\n", tsm_screen_get_height(console));
 
-  done = 0;
-  while (!done) {
-    if (SDL_WaitEvent(&event)) {
-      SDL_keysym k;
-      unsigned int mods = 0;
-      unsigned int scancode = 0;
-      switch (event.type) {
-        case SDL_MOUSEMOTION:
-          break;
-        case SDL_MOUSEBUTTONDOWN:
-          break;
-        case SDL_KEYDOWN:
-          k = event.key.keysym;
-          scancode = k.scancode;
-          if (k.mod & KMOD_CTRL)  mods |= TSM_CONTROL_MASK;
-          if (k.mod & KMOD_SHIFT) mods |= TSM_SHIFT_MASK;
-          if (k.mod & KMOD_ALT)   mods |= TSM_ALT_MASK;
-          if (k.mod & KMOD_META)  mods |= TSM_LOGO_MASK;
-          /* map cursor keys to XKB scancodes to be escaped by libtsm vte */
-          if (k.sym == SDLK_UP) scancode = XKB_KEY_Up;
-          if (k.sym == SDLK_DOWN) scancode = XKB_KEY_Down;
-          if (k.sym == SDLK_LEFT) scancode = XKB_KEY_Left;
-          if (k.sym == SDLK_RIGHT) scancode = XKB_KEY_Right;
-          if(k.unicode != 0 || 
-              (scancode==XKB_KEY_Up || 
-                scancode==XKB_KEY_Down || 
-                scancode==XKB_KEY_Left || 
-                scancode==XKB_KEY_Right)) {
-            /* only handle when there's non-zero unicode keypress... found using vim */
-            /*printf("scancode: %d  sym: %d  unicode: %d\n", scancode, k.sym, k.unicode);*/
-            tsm_vte_handle_keyboard(vte, scancode, k.sym, mods, k.unicode);
-          }
-          break;
-        /*case SDL_TEXTINPUT:*/
-          break;
-        case SDL_QUIT:
-          done = 1;
-          break;
-        case SDL_USEREVENT: /* sigio - something to read */
-          break;
-        case SDL_ACTIVEEVENT:
-          break;
-      }
-    }
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();    
+    // if (SDL_WaitEvent(&event)) {
+    //   SDL_keysym k;
+    //   unsigned int mods = 0;
+    //   unsigned int scancode = 0;
+    //   switch (event.type) {
+    //   case SDL_MOUSEMOTION:
+    //     break;
+    //   case SDL_MOUSEBUTTONDOWN:
+    //     break;
+    //   case SDL_KEYDOWN:
+    //     k = event.key.keysym;
+    //     scancode = k.scancode;
+    //     if (k.mod & KMOD_CTRL)
+    //       mods |= TSM_CONTROL_MASK;
+    //     if (k.mod & KMOD_SHIFT)
+    //       mods |= TSM_SHIFT_MASK;
+    //     if (k.mod & KMOD_ALT)
+    //       mods |= TSM_ALT_MASK;
+    //     if (k.mod & KMOD_META)
+    //       mods |= TSM_LOGO_MASK;
+    //     /* map cursor keys to XKB scancodes to be escaped by libtsm vte */
+    //     if (k.sym == SDLK_UP)
+    //       scancode = XKB_KEY_Up;
+    //     if (k.sym == SDLK_DOWN)
+    //       scancode = XKB_KEY_Down;
+    //     if (k.sym == SDLK_LEFT)
+    //       scancode = XKB_KEY_Left;
+    //     if (k.sym == SDLK_RIGHT)
+    //       scancode = XKB_KEY_Right;
+    //     if (k.unicode != 0 ||
+    //         (scancode == XKB_KEY_Up || scancode == XKB_KEY_Down ||
+    //          scancode == XKB_KEY_Left || scancode == XKB_KEY_Right)) {
+    //       /* only handle when there's non-zero unicode keypress... found using
+    //        * vim */
+    //       /*printf("scancode: %d  sym: %d  unicode: %d\n", scancode, k.sym,
+    //        * k.unicode);*/
+    //       tsm_vte_handle_keyboard(vte, scancode, k.sym, mods, k.unicode);
+    //     }
+    //     break;
+    //     /*case SDL_TEXTINPUT:*/
+    //     break;
+    //   case SDL_QUIT:
+    //     done = 1;
+    //     break;
+    //   case SDL_USEREVENT: /* sigio - something to read */
+    //     break;
+    //   case SDL_ACTIVEEVENT:
+    //     break;
+    //   }
+    // }
 
     shl_pty_dispatch(pty);
-
-    if (SDL_GetTicks() <= (ticks+50))
-      continue;
-/*
-    if ( (SDL_GetAppState() & SDL_APPACTIVE) == 0)
-      continue;
-*/
-    ticks = SDL_GetTicks();
 
     tsm_vte_get_def_attr(vte, &attr);
     glViewport(0, 0, width, height);
@@ -348,10 +313,10 @@ int main(int argc, char *argv[])
     fonsSetFont(stash, fontNormal);
     fonsSetSize(stash, fh);
     screen_age = tsm_screen_draw(console, draw_cb, stash);
-    SDL_GL_SwapBuffers();
+    glfwSwapBuffers(window);;
   }
   shl_pty_close(pty);
-  
-  SDL_Quit();
+
+  glfwTerminate();
   return 0;
 }
