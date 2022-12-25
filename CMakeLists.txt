@@ -17,7 +17,7 @@ find_package(OpenGL REQUIRED)
 add_executable(
   ${PROJECT_NAME}
   main.c
-  libshl/src/shl_pty.c
+  shl_pty.c
   libtsm/src/shl_htable.c
   libtsm/src/tsm_render.c
   libtsm/src/tsm_screen.c
@@ -30,4 +30,4 @@ target_link_libraries(${PROJECT_NAME} PRIVATE glfw m OpenGL::GL)
 target_compile_definitions(${PROJECT_NAME} PRIVATE FONTSTASH_IMPLEMENTATION
                                                    SIGUNUSED=SIGSYS)
 target_include_directories(${PROJECT_NAME} PRIVATE fontstash/src libtsm/src
-                                                   libtsm libshl/src)
+                                                   libtsm)
