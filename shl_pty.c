@@ -385,7 +385,7 @@ pid_t shl_pty_open(struct shl_pty **out,
 	int fd, comm[2], slave, r;
 	char d;
 
-	pty = calloc(1, sizeof(*pty));
+	pty = calloc(1, sizeof(struct shl_pty));
 	if (!pty)
 		return -ENOMEM;
 
