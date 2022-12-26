@@ -13,6 +13,8 @@ public:
   TsmScreen();
   ~TsmScreen();
   void Launch();
+  void Input(uint32_t keysym, uint32_t ascii, unsigned int mods,
+             uint32_t unicode);
   void Resize(int cols, int rows);
   struct tsm_screen_attr *Dispatch();
   void Draw(class FontStashRenderer *stash);

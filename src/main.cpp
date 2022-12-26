@@ -24,7 +24,58 @@
 #include "TsmScreen.h"
 #include "args.h"
 #include <GLFW/glfw3.h>
+#include <cstdint>
+#include <external/xkbcommon-keysyms.h>
+#include <stdint.h>
 #include <stdio.h>
+
+static uint32_t GlfwToXkb(int key) {
+  switch (key) {
+  case GLFW_KEY_ENTER:
+    return XKB_KEY_Return;
+  case GLFW_KEY_UP:
+    return XKB_KEY_Up;
+  case GLFW_KEY_DOWN:
+    return XKB_KEY_Down;
+  case GLFW_KEY_LEFT:
+    return XKB_KEY_Left;
+  case GLFW_KEY_RIGHT:
+    return XKB_KEY_Right;
+  default:
+    return 0;
+  }
+}
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action,
+                  int mod) {
+  auto screen = (TsmScreen *)glfwGetWindowUserPointer(window);
+
+  if (action != GLFW_PRESS) {
+    return;
+  }
+
+  uint32_t mods = 0;
+  if (mod & GLFW_MOD_CONTROL)
+    mods |= TSM_CONTROL_MASK;
+  if (mod & GLFW_MOD_SHIFT)
+    mods |= TSM_SHIFT_MASK;
+  if (mod & GLFW_MOD_ALT)
+    mods |= TSM_ALT_MASK;
+  if (mod & GLFW_MOD_SUPER)
+    mods |= TSM_LOGO_MASK;
+
+  /* map cursor keys to XKB scancodes to be escaped by libtsm vte */
+  uint32_t keysym = GlfwToXkb(key);
+
+  printf("key: %d, scancode: %d\n", key, scancode);
+  screen->Input(keysym, 0, mods, 0);
+}
+
+void character_callback(GLFWwindow *window, unsigned int codepoint) {
+  auto screen = (TsmScreen *)glfwGetWindowUserPointer(window);
+  printf("unicode: 0x%04x\n", codepoint);
+  screen->Input(0, 0, 0, codepoint);
+}
 
 int main(int argc, char *argv[]) {
   Args args;
@@ -40,10 +91,12 @@ int main(int argc, char *argv[]) {
     glfwTerminate();
     return 2;
   }
+  glfwSetKeyCallback(window, key_callback);
+  glfwSetCharCallback(window, character_callback);
   glfwMakeContextCurrent(window);
-
   TsmScreen screen;
   screen.Launch();
+  glfwSetWindowUserPointer(window, &screen);
 
   FontStashRenderer stash;
   if (!stash.Initialize(args.fontfile, args.fh)) {
@@ -58,57 +111,6 @@ int main(int argc, char *argv[]) {
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-    // if (SDL_WaitEvent(&event)) {
-    //   SDL_keysym k;
-    //   unsigned int mods = 0;
-    //   unsigned int scancode = 0;
-    //   switch (event.type) {
-    //   case SDL_MOUSEMOTION:
-    //     break;
-    //   case SDL_MOUSEBUTTONDOWN:
-    //     break;
-    //   case SDL_KEYDOWN:
-    //     k = event.key.keysym;
-    //     scancode = k.scancode;
-    //     if (k.mod & KMOD_CTRL)
-    //       mods |= TSM_CONTROL_MASK;
-    //     if (k.mod & KMOD_SHIFT)
-    //       mods |= TSM_SHIFT_MASK;
-    //     if (k.mod & KMOD_ALT)
-    //       mods |= TSM_ALT_MASK;
-    //     if (k.mod & KMOD_META)
-    //       mods |= TSM_LOGO_MASK;
-    //     /* map cursor keys to XKB scancodes to be escaped by libtsm vte */
-    //     if (k.sym == SDLK_UP)
-    //       scancode = XKB_KEY_Up;
-    //     if (k.sym == SDLK_DOWN)
-    //       scancode = XKB_KEY_Down;
-    //     if (k.sym == SDLK_LEFT)
-    //       scancode = XKB_KEY_Left;
-    //     if (k.sym == SDLK_RIGHT)
-    //       scancode = XKB_KEY_Right;
-    //     if (k.unicode != 0 ||
-    //         (scancode == XKB_KEY_Up || scancode == XKB_KEY_Down ||
-    //          scancode == XKB_KEY_Left || scancode == XKB_KEY_Right)) {
-    //       /* only handle when there's non-zero unicode keypress... found
-    //       using
-    //        * vim */
-    //       /*printf("scancode: %d  sym: %d  unicode: %d\n", scancode, k.sym,
-    //        * k.unicode);*/
-    //       tsm_vte_handle_keyboard(vte, scancode, k.sym, mods, k.unicode);
-    //     }
-    //     break;
-    //     /*case SDL_TEXTINPUT:*/
-    //     break;
-    //   case SDL_QUIT:
-    //     done = 1;
-    //     break;
-    //   case SDL_USEREVENT: /* sigio - something to read */
-    //     break;
-    //   case SDL_ACTIVEEVENT:
-    //     break;
-    //   }
-    // }
 
     // render
     auto attr = screen.Dispatch();

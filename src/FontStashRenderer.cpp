@@ -48,10 +48,11 @@ void FontStashRenderer::Update(float fh) {
 }
 
 int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
-                       const uint32_t *ch, size_t len, unsigned int cwidth,
-                       unsigned int posx, unsigned int posy,
-                       const struct tsm_screen_attr *attr, tsm_age_t age,
-                       void *data) {
+                               const uint32_t *ch, size_t len,
+                               unsigned int cwidth, unsigned int posx,
+                               unsigned int posy,
+                               const struct tsm_screen_attr *attr,
+                               tsm_age_t age, void *data) {
 
   auto self = (FontStashRenderer *)data;
 
@@ -88,10 +89,10 @@ int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
     glRectf(dx + lw, dy, dx, dy + lh);
 
     color = glfonsRGBA(fr, fg, fb, 255);
-    fonsSetColor((FONScontext *)data, color);
+    fonsSetColor(self->stash_, color);
     for (i = 0; i < len; i += cwidth) {
       sprintf(buf, "%c", ch[i]);
-      dx = fonsDrawText((FONScontext *)data, dx,
+      dx = fonsDrawText(self->stash_, dx,
                         dy + self->ascender /*((bounds[2]-bounds[0]))*/, buf,
                         NULL);
     }

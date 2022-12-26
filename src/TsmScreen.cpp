@@ -1,6 +1,7 @@
 #include "TsmScreen.h"
 #include "FontStashRenderer.h"
 #include "shl_pty.h"
+#include <cstdint>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -79,6 +80,10 @@ void TsmScreen::Launch() {
     perror("execve error");
     exit(-2);
   }
+}
+
+void TsmScreen::Input(uint32_t keysym, uint32_t ascii, unsigned int mods, uint32_t unicode) {
+  tsm_vte_handle_keyboard(vte, keysym, ascii, mods, unicode);
 }
 
 void TsmScreen::Resize(int cols, int rows) {

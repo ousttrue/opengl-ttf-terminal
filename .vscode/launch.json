@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/togl",
+            "program": "${workspaceFolder}/build/Debug/bin/togl",
             "args": [
                 "-f",
                 "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf"
