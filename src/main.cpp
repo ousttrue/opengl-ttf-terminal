@@ -20,14 +20,14 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
+#include "args.h"
+#include <GLFW/glfw3.h>
 #include <fcntl.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <GLFW/glfw3.h>
 
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
@@ -136,43 +136,6 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id, const uint32_t *ch,
   }
   return 0;
 }
-
-struct Args {
-  int width = 1024;
-  int height = 764;
-  bool fullscreen = 0;
-  // font height
-  float fh = 21.0f;
-  const char *fontfile = "VeraMono.ttf";
-
-  void parse(int argc, char **argv) {
-    int opt;
-    while ((opt = getopt(argc, argv, "f:s:g:m")) != -1) {
-      switch (opt) {
-      case 'f':
-        fontfile = optarg;
-        break;
-      case 's':
-        fh = atoi(optarg);
-        break;
-      case 'g':
-        width = atoi(strtok(optarg, "x"));
-        height = atoi(strtok(NULL, "x"));
-        break;
-      case 'm':
-        fullscreen = true;
-        break;
-      default: /* '?' */
-        fprintf(stderr,
-                "Usage: %s [-f ttf file] [-s font size] [-g geometry] [-m "
-                "fullscreen mode]\n",
-                argv[0]);
-        exit(EXIT_FAILURE);
-      }
-    }
-    printf("Using: %s    at: %f \n", fontfile, fh);
-  }
-};
 
 int main(int argc, char *argv[]) {
   Args args;
