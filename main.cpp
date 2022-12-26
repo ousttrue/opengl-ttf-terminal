@@ -1,7 +1,6 @@
-/* experimental terminal window using libSDL, OpenGL, stb_truetype, fontstash, and libtsm
- * Copyright (c) 2016 A. Carl Douglas
+/* experimental terminal window using libSDL, OpenGL, stb_truetype, fontstash,
+ * and libtsm Copyright (c) 2016 A. Carl Douglas
  */
-
 
 //
 // Copyright (c) 2009 Mikko Mononen memon@inside.org
@@ -21,12 +20,12 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
+#include <fcntl.h>
+#include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <signal.h>
-#include <fcntl.h>
 
 #include <GLFW/glfw3.h>
 
@@ -67,76 +66,84 @@ void io_handler(int s) {
   // TODO
 }
 
-void fonsError(void* uptr, int error, int val) {
+void fonsError(void *uptr, int error, int val) {
   printf("FONT ERROR: %d --- %d\n", error, val);
   exit(-1);
 }
 
 /* called when data has been read from the fd slave -> master  (vte input )*/
-static void term_read_cb(struct shl_pty *pty, char *u8, size_t len, void *data) {
+static void term_read_cb(struct shl_pty *pty, char *u8, size_t len,
+                         void *data) {
   tsm_vte_input(vte, u8, len);
 }
 
-/* called when there is data to be written to the fd master -> slave  (vte output) */
-static void term_write_cb(struct tsm_vte *vtelocal, const char *u8, size_t len, void *data) {
+/* called when there is data to be written to the fd master -> slave  (vte
+ * output) */
+static void term_write_cb(struct tsm_vte *vtelocal, const char *u8, size_t len,
+                          void *data) {
   int r;
   r = shl_pty_write(pty, u8, len);
   if (r < 0) {
-    printf ("could not write to pty, %d\n", r);
+    printf("could not write to pty, %d\n", r);
   }
 }
 
 static void log_tsm(void *data, const char *file, int line, const char *fn,
                     const char *subs, unsigned int sev, const char *format,
-                    va_list args)
-{
+                    va_list args) {
   fprintf(stderr, "%d: %s: ", sev, subs);
   vfprintf(stderr, format, args);
   fprintf(stderr, "\n");
 }
 
-static int draw_cb(struct tsm_screen *screen, uint32_t id,
-                   const uint32_t *ch, size_t len,
-                   unsigned int cwidth, unsigned int posx,
-                   unsigned int posy,
-                   const struct tsm_screen_attr *attr,
-                   tsm_age_t age, void *data)
-{
+static int draw_cb(struct tsm_screen *screen, uint32_t id, const uint32_t *ch,
+                   size_t len, unsigned int cwidth, unsigned int posx,
+                   unsigned int posy, const struct tsm_screen_attr *attr,
+                   tsm_age_t age, void *data) {
   int i;
-  int lh=lineh;
-  int lw=(bounds[2] - bounds[0]);
-  float dx=posx*lw, 
-        dy=posy*lh;
+  int lh = lineh;
+  int lw = (bounds[2] - bounds[0]);
+  float dx = posx * lw, dy = posy * lh;
   char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
   unsigned int color;
   if (attr->inverse) {
-    fr = attr->br; fg = attr->bg; fb = attr->bb; br = attr->fr; bg = attr->fg; bb = attr->fb;
+    fr = attr->br;
+    fg = attr->bg;
+    fb = attr->bb;
+    br = attr->fr;
+    bg = attr->fg;
+    bb = attr->fb;
   } else {
-    fr = attr->fr; fg = attr->fg; fb = attr->fb; br = attr->br; bg = attr->bg; bb = attr->bb;
+    fr = attr->fr;
+    fg = attr->fg;
+    fb = attr->fb;
+    br = attr->br;
+    bg = attr->bg;
+    bb = attr->bb;
   }
 
   if (!len) {
-    glColor4ub(br,bg,bb,255);
+    glColor4ub(br, bg, bb, 255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+lw,dy,dx,dy+lh);
+    glRectf(dx + lw, dy, dx, dy + lh);
   } else {
-    glColor4ub(br,bg,bb,255);
+    glColor4ub(br, bg, bb, 255);
     glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx+lw,dy,dx,dy+lh);
+    glRectf(dx + lw, dy, dx, dy + lh);
 
-    color = glfonsRGBA(fr,fg,fb,255);
-    fonsSetColor((FONScontext*)data, color);
-    for (i = 0; i < len; i += cwidth)  {
-      sprintf(buf,"%c",ch[i]);
-      dx = fonsDrawText((FONScontext*)data, dx, dy + ascender /*((bounds[2]-bounds[0]))*/, buf, NULL);
+    color = glfonsRGBA(fr, fg, fb, 255);
+    fonsSetColor((FONScontext *)data, color);
+    for (i = 0; i < len; i += cwidth) {
+      sprintf(buf, "%c", ch[i]);
+      dx = fonsDrawText((FONScontext *)data, dx,
+                        dy + ascender /*((bounds[2]-bounds[0]))*/, buf, NULL);
     }
   }
   return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int done;
   int flags;
   FONScontext *stash = NULL;
@@ -162,7 +169,10 @@ int main(int argc, char *argv[])
       fullscreen = 1;
       break;
     default: /* '?' */
-       fprintf(stderr, "Usage: %s [-f ttf file] [-s font size] [-g geometry] [-m fullscreen mode]\n", argv[0]);
+      fprintf(stderr,
+              "Usage: %s [-f ttf file] [-s font size] [-g geometry] [-m "
+              "fullscreen mode]\n",
+              argv[0]);
       exit(EXIT_FAILURE);
     }
   }
@@ -183,30 +193,28 @@ int main(int argc, char *argv[])
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
 
   /* this call will fork */
-  pid = shl_pty_open(&pty,
-                   term_read_cb,
-                   NULL,
-                   tsm_screen_get_width(console),
+  pid = shl_pty_open(&pty, term_read_cb, NULL, tsm_screen_get_width(console),
                      tsm_screen_get_height(console));
 
   if (pid < 0) {
     perror("fork problem");
-  } else if (pid != 0 ) {
+  } else if (pid != 0) {
     /* parent, pty master */
     int fd = shl_pty_get_fd(pty);
     unsigned oflags = 0;
-    /* enable SIGIO signal for this process when it has a ready file descriptor */
+    /* enable SIGIO signal for this process when it has a ready file descriptor
+     */
     signal(SIGIO, &io_handler);
-    fcntl(fd, F_SETOWN, getpid(  ));
+    fcntl(fd, F_SETOWN, getpid());
     oflags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, oflags | FASYNC);
     /* watch for SIGHUP */
     signal(SIGCHLD, &hup_handler);
   } else {
     /* child, shell */
-    auto shell = getenv("SHELL") ? : "/bin/bash";
-    const char *argv[] = {  shell, NULL };
-    execve(argv[0], (char**)argv, environ);
+    auto shell = getenv("SHELL") ?: "/bin/bash";
+    const char *argv[] = {shell, NULL};
+    execve(argv[0], (char **)argv, environ);
     /* never reached except on execve error */
     perror("execve error");
     exit(-2);
@@ -232,14 +240,16 @@ int main(int argc, char *argv[])
   advance = fonsTextBounds(stash, 0, 0, "W", NULL, bounds);
   fonsVertMetrics(stash, &ascender, &descender, &lineh);
 
-  tsm_screen_resize(console, (width / (bounds[2]-bounds[0]) - 1), (height / lineh)-1);
-  shl_pty_resize(pty, tsm_screen_get_width(console), tsm_screen_get_height(console));
+  tsm_screen_resize(console, (width / (bounds[2] - bounds[0]) - 1),
+                    (height / lineh) - 1);
+  shl_pty_resize(pty, tsm_screen_get_width(console),
+                 tsm_screen_get_height(console));
 
   printf("console width: %d\n", tsm_screen_get_width(console));
   printf("console height: %d\n", tsm_screen_get_height(console));
 
   while (!glfwWindowShouldClose(window)) {
-    glfwPollEvents();    
+    glfwPollEvents();
     // if (SDL_WaitEvent(&event)) {
     //   SDL_keysym k;
     //   unsigned int mods = 0;
@@ -272,7 +282,8 @@ int main(int argc, char *argv[])
     //     if (k.unicode != 0 ||
     //         (scancode == XKB_KEY_Up || scancode == XKB_KEY_Down ||
     //          scancode == XKB_KEY_Left || scancode == XKB_KEY_Right)) {
-    //       /* only handle when there's non-zero unicode keypress... found using
+    //       /* only handle when there's non-zero unicode keypress... found
+    //       using
     //        * vim */
     //       /*printf("scancode: %d  sym: %d  unicode: %d\n", scancode, k.sym,
     //        * k.unicode);*/
@@ -296,24 +307,25 @@ int main(int argc, char *argv[])
     tsm_vte_get_def_attr(vte, &attr);
     glViewport(0, 0, width, height);
     glClearColor(attr.br, attr.bg, attr.bb, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_TEXTURE_2D);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0,width,height,0,-1,1);
+    glOrtho(0, width, height, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
-    //glColor4ub(255,255,255,255);
+    // glColor4ub(255,255,255,255);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_CULL_FACE);
 
     fonsClearState(stash);
     fonsSetFont(stash, fontNormal);
     fonsSetSize(stash, fh);
     screen_age = tsm_screen_draw(console, draw_cb, stash);
-    glfwSwapBuffers(window);;
+    glfwSwapBuffers(window);
+    ;
   }
   shl_pty_close(pty);
 
