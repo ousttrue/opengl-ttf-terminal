@@ -34,10 +34,12 @@ void TsmScreen::Input(uint32_t keysym, uint32_t ascii, unsigned int mods,
 int TsmScreen::Cols() const { return tsm_screen_get_width(console); }
 int TsmScreen::Rows() const { return tsm_screen_get_height(console); }
 void TsmScreen::Resize(int cols, int rows) {
+  if (cols == Cols() && rows == Rows()) {
+    return;
+  }
   tsm_screen_resize(console, cols, rows);
   Resized(Cols(), Rows());
-  printf("console width: %d\n", Cols());
-  printf("console height: %d\n", Rows());
+  printf("console %d x %d\n", Cols(), Rows());
 }
 
 struct tsm_screen_attr *TsmScreen::Get() {

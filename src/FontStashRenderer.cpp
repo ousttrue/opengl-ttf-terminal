@@ -1,7 +1,11 @@
 #include "FontStashRenderer.h"
 #include <GL/gl.h>
+#include <cstdint>
 #include <iostream>
+#include <stdexcept>
 #include <stdio.h>
+#include <string_view>
+#include <unordered_set>
 
 #include "fontstash.h"
 #include "glfontstash.h"
@@ -71,6 +75,39 @@ void FontStashRenderer::Clear(int width, int height, float r, float g,
   glEnable(GL_CULL_FACE);
 }
 
+std::unordered_set<uint32_t> used_;
+
+char c[5] = {0};
+static std::string_view cp2utf8(uint32_t cp) {
+  if (cp <= 0x7F) {
+    c[0] = cp;
+    c[1] = 0;
+    return {c, 1};
+  } else if (cp <= 0x7FF) {
+    c[0] = (cp >> 6) + 192;
+    c[1] = (cp & 63) + 128;
+    c[2] = 0;
+    return {c, 2};
+  } else if (0xd800 <= cp && cp <= 0xdfff) {
+  } // invalid block of utf8
+  else if (cp <= 0xFFFF) {
+    c[0] = (cp >> 12) + 224;
+    c[1] = ((cp >> 6) & 63) + 128;
+    c[2] = (cp & 63) + 128;
+    c[3] = 0;
+    return {c, 3};
+  } else if (cp <= 0x10FFFF) {
+    c[0] = (cp >> 18) + 240;
+    c[1] = ((cp >> 12) & 63) + 128;
+    c[2] = ((cp >> 6) & 63) + 128;
+    c[3] = (cp & 63) + 128;
+    c[4] = 0;
+    return {c, 4};
+  } else {
+  }
+  throw std::runtime_error("invalid cp");
+}
+
 int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
                                const uint32_t *ch, size_t len,
                                unsigned int cwidth, unsigned int posx,
@@ -109,15 +146,25 @@ int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
   glRectf(dx + lw, dy, dx, dy + lh);
 
   if (len) {
-    // draw glyphs
     auto color = glfonsRGBA(fr, fg, fb, 255);
     fonsSetColor(self->stash_, color);
     for (int i = 0; i < len; i += cwidth) {
-      char buf[32];
-      sprintf(buf, "%c", ch[i]);
+      // unicode code points
+      auto found = used_.find(ch[i]);
+      auto utf8 = cp2utf8(ch[i]);
+      if (found == used_.end()) {
+        used_.insert(ch[i]);
+        auto char_type = "unknown";
+        if (ch[i] < 128) {
+          char_type = "ascii";
+        } else {
+          auto a = 0;
+        }
+        printf("U+%04x: [%s] %s\n", ch[i], char_type, utf8.data());
+      }
       dx = fonsDrawText(self->stash_, dx,
-                        dy + self->ascender /*((bounds[2]-bounds[0]))*/, buf,
-                        NULL);
+                        dy + self->ascender /*((bounds[2]-bounds[0]))*/,
+                        utf8.begin(), utf8.end());
     }
   }
   return 0;
