@@ -20,13 +20,12 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
+#include "ChildProcess.h"
 #include "FontStashRenderer.h"
 #include "TsmScreen.h"
 #include "args.h"
 #include <GLFW/glfw3.h>
-#include <cstdint>
 #include <external/xkbcommon-keysyms.h>
-#include <stdint.h>
 #include <stdio.h>
 
 static uint32_t GlfwToXkb(int key) {
@@ -94,8 +93,11 @@ int main(int argc, char *argv[]) {
   glfwSetKeyCallback(window, key_callback);
   glfwSetCharCallback(window, character_callback);
   glfwMakeContextCurrent(window);
-  TsmScreen screen;
-  screen.Launch();
+
+  ChildProcess child;
+  TsmScreen screen(&ChildProcess::term_write_cb, &child);
+  screen.Resized = [&child](int cols, int rows) { child.Resize(cols, rows); };
+  child.Launch(screen.Cols(), screen.Rows(), &TsmScreen::term_read_cb, &screen);
   glfwSetWindowUserPointer(window, &screen);
 
   FontStashRenderer stash;
@@ -113,7 +115,8 @@ int main(int argc, char *argv[]) {
     glfwPollEvents();
 
     // render
-    auto attr = screen.Dispatch();
+    child.Dispatch();
+    auto attr = screen.Get();
     glViewport(0, 0, args.width, args.height);
     glClearColor(attr->br, attr->bg, attr->bb, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
