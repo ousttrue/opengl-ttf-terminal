@@ -12,12 +12,11 @@ FetchContent_Declare(
   GIT_TAG 3.3.8)
 FetchContent_MakeAvailable(glfw)
 
-find_package(OpenGL REQUIRED)
+add_library(fontstash INTERFACE)
+target_include_directories(fontstash INTERFACE fontstash/src)
 
-add_executable(
-  ${PROJECT_NAME}
-  main.cpp
-  shl_pty.cpp
+add_library(
+  tsm
   libtsm/src/shl_htable.c
   libtsm/src/tsm_render.c
   libtsm/src/tsm_screen.c
@@ -26,8 +25,6 @@ add_executable(
   libtsm/src/tsm_vte.c
   libtsm/src/tsm_vte_charsets.c
   libtsm/external/wcwidth.c)
-target_link_libraries(${PROJECT_NAME} PRIVATE glfw m OpenGL::GL)
-target_compile_definitions(${PROJECT_NAME} PRIVATE FONTSTASH_IMPLEMENTATION
-                                                   SIGUNUSED=SIGSYS)
-target_include_directories(${PROJECT_NAME} PRIVATE fontstash/src libtsm/src
-                                                   libtsm)
+target_include_directories(tsm PUBLIC libtsm/src libtsm)
+
+subdirs(src)

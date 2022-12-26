@@ -29,7 +29,6 @@
 
 #include <GLFW/glfw3.h>
 
-extern "C" {
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
 #define GLFONTSTASH_IMPLEMENTATION
@@ -37,20 +36,15 @@ extern "C" {
 
 #include "external/xkbcommon-keysyms.h"
 #include "libtsm.h"
-}
 #include "shl_pty.h"
 
 extern char **environ;
 
-static int width = 1024, height = 764;
-static float fh = 21.0f; /* font height */
 static float lineh;
 static float ascender;
 static float descender;
 static float bounds[4]; /* glyph width, height */
 static float advance;
-
-static unsigned int fullscreen = 0;
 
 static struct tsm_screen *console;
 static struct tsm_vte *vte;
@@ -143,46 +137,53 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id, const uint32_t *ch,
   return 0;
 }
 
-int main(int argc, char *argv[]) {
-  int done;
-  int flags;
-  FONScontext *stash = NULL;
-  int fontNormal = FONS_INVALID;
-  pid_t pid;
-  int opt;
+struct Args {
+  int width = 1024;
+  int height = 764;
+  bool fullscreen = 0;
+  // font height
+  float fh = 21.0f;
   const char *fontfile = "VeraMono.ttf";
-  struct tsm_screen_attr attr;
 
-  while ((opt = getopt(argc, argv, "f:s:g:m")) != -1) {
-    switch (opt) {
-    case 'f':
-      fontfile = optarg;
-      break;
-    case 's':
-      fh = atoi(optarg);
-      break;
-    case 'g':
-      width = atoi(strtok(optarg, "x"));
-      height = atoi(strtok(NULL, "x"));
-      break;
-    case 'm':
-      fullscreen = 1;
-      break;
-    default: /* '?' */
-      fprintf(stderr,
-              "Usage: %s [-f ttf file] [-s font size] [-g geometry] [-m "
-              "fullscreen mode]\n",
-              argv[0]);
-      exit(EXIT_FAILURE);
+  void parse(int argc, char **argv) {
+    int opt;
+    while ((opt = getopt(argc, argv, "f:s:g:m")) != -1) {
+      switch (opt) {
+      case 'f':
+        fontfile = optarg;
+        break;
+      case 's':
+        fh = atoi(optarg);
+        break;
+      case 'g':
+        width = atoi(strtok(optarg, "x"));
+        height = atoi(strtok(NULL, "x"));
+        break;
+      case 'm':
+        fullscreen = true;
+        break;
+      default: /* '?' */
+        fprintf(stderr,
+                "Usage: %s [-f ttf file] [-s font size] [-g geometry] [-m "
+                "fullscreen mode]\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
+      }
     }
+    printf("Using: %s    at: %f \n", fontfile, fh);
   }
-  printf("Using: %s    at: %f \n", fontfile, fh);
+};
+
+int main(int argc, char *argv[]) {
+  Args args;
+  args.parse(argc, argv);
 
   if (!glfwInit()) {
     fprintf(stderr, "glfwInit\n");
     return -1;
   }
-  GLFWwindow *window = glfwCreateWindow(width, height, "libtsm", NULL, NULL);
+  GLFWwindow *window =
+      glfwCreateWindow(args.width, args.height, "libtsm", NULL, NULL);
   if (!window) {
     glfwTerminate();
     return -1;
@@ -192,9 +193,10 @@ int main(int argc, char *argv[]) {
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
 
-  /* this call will fork */
-  pid = shl_pty_open(&pty, term_read_cb, NULL, tsm_screen_get_width(console),
-                     tsm_screen_get_height(console));
+  // this call will fork
+  auto pid =
+      shl_pty_open(&pty, term_read_cb, NULL, tsm_screen_get_width(console),
+                   tsm_screen_get_height(console));
 
   if (pid < 0) {
     perror("fork problem");
@@ -220,15 +222,15 @@ int main(int argc, char *argv[]) {
     exit(-2);
   }
 
-  stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
-  if (stash == NULL) {
+  auto stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
+  if (!stash) {
     printf("Could not create stash.\n");
     return -1;
   }
 
   fonsSetErrorCallback(stash, fonsError, stash);
 
-  fontNormal = fonsAddFont(stash, "sans", fontfile);
+  auto fontNormal = fonsAddFont(stash, "sans", args.fontfile);
   if (fontNormal == FONS_INVALID) {
     printf("Could not add font.\n");
     return -1;
@@ -236,12 +238,12 @@ int main(int argc, char *argv[]) {
   /* measure a character to determine the glyph box size */
   fonsClearState(stash);
   fonsSetFont(stash, fontNormal);
-  fonsSetSize(stash, fh);
+  fonsSetSize(stash, args.fh);
   advance = fonsTextBounds(stash, 0, 0, "W", NULL, bounds);
   fonsVertMetrics(stash, &ascender, &descender, &lineh);
 
-  tsm_screen_resize(console, (width / (bounds[2] - bounds[0]) - 1),
-                    (height / lineh) - 1);
+  tsm_screen_resize(console, (args.width / (bounds[2] - bounds[0]) - 1),
+                    (args.height / lineh) - 1);
   shl_pty_resize(pty, tsm_screen_get_width(console),
                  tsm_screen_get_height(console));
 
@@ -304,14 +306,15 @@ int main(int argc, char *argv[]) {
 
     shl_pty_dispatch(pty);
 
+    struct tsm_screen_attr attr;
     tsm_vte_get_def_attr(vte, &attr);
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, args.width, args.height);
     glClearColor(attr.br, attr.bg, attr.bb, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_TEXTURE_2D);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0, width, height, 0, -1, 1);
+    glOrtho(0, args.width, args.height, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
@@ -322,7 +325,7 @@ int main(int argc, char *argv[]) {
 
     fonsClearState(stash);
     fonsSetFont(stash, fontNormal);
-    fonsSetSize(stash, fh);
+    fonsSetSize(stash, args.fh);
     screen_age = tsm_screen_draw(console, draw_cb, stash);
     glfwSwapBuffers(window);
     ;

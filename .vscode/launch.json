@@ -9,7 +9,10 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/togl",
-            "args": [],
+            "args": [
+                "-f",
+                "${env:HOME}/.fonts/HackGenNerdConsole-Regular.ttf"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
