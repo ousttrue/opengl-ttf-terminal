@@ -19,7 +19,7 @@ public:
   int Cols() const;
   int Rows() const;
   struct tsm_screen_attr *Get();
-  void Draw(class FontStashRenderer *stash);
+  void Draw(tsm_screen_draw_cb draw_cb, void *data);
   static void term_read_cb(struct shl_pty *pty, char *u8, size_t len,
                            void *data);
 };

@@ -1,10 +1,9 @@
 #include "FontStashRenderer.h"
-#include <GLFW/glfw3.h>
+#include <GL/gl.h>
+#include <iostream>
 #include <stdio.h>
 
-#define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
-#define GLFONTSTASH_IMPLEMENTATION
 #include "glfontstash.h"
 
 static void fonsError(void *uptr, int error, int val) {
@@ -13,6 +12,10 @@ static void fonsError(void *uptr, int error, int val) {
 }
 
 bool FontStashRenderer::Initialize(const char *fontfile, float fh) {
+  std::cout << "GL_VERSION: " << glGetString(GL_VERSION) << std::endl;
+  std::cout << "GL_VERNDOR: " << glGetString(GL_VENDOR) << std::endl;
+  std::cout << "GL_RENDERER: " << glGetString(GL_RENDERER) << std::endl;
+
   stash_ = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
   if (!stash_) {
     printf("Could not create stash.\n");
@@ -47,6 +50,27 @@ void FontStashRenderer::Update(float fh) {
   fonsSetSize(stash_, fh);
 }
 
+void FontStashRenderer::Clear(int width, int height, float r, float g,
+                              float b) {
+  glViewport(0, 0, width, height);
+  glClearColor(r, g, b, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glOrtho(0, width, height, 0, -1, 1);
+
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+
+  glDisable(GL_TEXTURE_2D);
+  glDisable(GL_DEPTH_TEST);
+  // glColor4ub(255,255,255,255);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_CULL_FACE);
+}
+
 int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
                                const uint32_t *ch, size_t len,
                                unsigned int cwidth, unsigned int posx,
@@ -56,13 +80,7 @@ int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
 
   auto self = (FontStashRenderer *)data;
 
-  int i;
-  int lh = self->lineh;
-  int lw = (self->bounds[2] - self->bounds[0]);
-  float dx = posx * lw, dy = posy * lh;
-  char buf[32];
   uint8_t fr, fg, fb, br, bg, bb;
-  unsigned int color;
   if (attr->inverse) {
     fr = attr->br;
     fg = attr->bg;
@@ -79,18 +97,23 @@ int FontStashRenderer::draw_cb(struct tsm_screen *screen, uint32_t id,
     bb = attr->bb;
   }
 
-  if (!len) {
-    glColor4ub(br, bg, bb, 255);
-    glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx + lw, dy, dx, dy + lh);
-  } else {
-    glColor4ub(br, bg, bb, 255);
-    glPolygonMode(GL_FRONT, GL_FILL);
-    glRectf(dx + lw, dy, dx, dy + lh);
+  // rect
+  int lh = self->lineh;
+  int lw = (self->bounds[2] - self->bounds[0]);
+  float dx = posx * lw;
+  float dy = posy * lh;
 
-    color = glfonsRGBA(fr, fg, fb, 255);
+  // clear bg color
+  glColor4ub(br, bg, bb, 255);
+  glPolygonMode(GL_FRONT, GL_FILL);
+  glRectf(dx + lw, dy, dx, dy + lh);
+
+  if (len) {
+    // draw glyphs
+    auto color = glfonsRGBA(fr, fg, fb, 255);
     fonsSetColor(self->stash_, color);
-    for (i = 0; i < len; i += cwidth) {
+    for (int i = 0; i < len; i += cwidth) {
+      char buf[32];
       sprintf(buf, "%c", ch[i]);
       dx = fonsDrawText(self->stash_, dx,
                         dy + self->ascender /*((bounds[2]-bounds[0]))*/, buf,

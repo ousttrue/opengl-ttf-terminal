@@ -1,5 +1,4 @@
 #include "TsmScreen.h"
-#include "FontStashRenderer.h"
 #include <cstdint>
 #include <stdio.h>
 #include <string.h>
@@ -46,6 +45,6 @@ struct tsm_screen_attr *TsmScreen::Get() {
   return &attr;
 }
 
-void TsmScreen::Draw(FontStashRenderer *stash) {
-  screen_age = tsm_screen_draw(console, &FontStashRenderer::draw_cb, stash);
+void TsmScreen::Draw(tsm_screen_draw_cb draw_cb, void *data) {
+  screen_age = tsm_screen_draw(console, draw_cb, data);
 }

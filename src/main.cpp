@@ -22,7 +22,6 @@
 
 #include "ChildProcess.h"
 #include "FontStashRenderer.h"
-#include "Renderer.h"
 #include "TsmScreen.h"
 #include "args.h"
 #define GLFW_INCLUDE_NONE
@@ -34,6 +33,8 @@ static uint32_t GlfwToXkb(int key) {
   switch (key) {
   case GLFW_KEY_ENTER:
     return XKB_KEY_Return;
+  case GLFW_KEY_BACKSPACE:
+    return XKB_KEY_BackSpace;
   case GLFW_KEY_UP:
     return XKB_KEY_Up;
   case GLFW_KEY_DOWN:
@@ -56,8 +57,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action,
   }
 
   uint32_t mods = 0;
-  if (mod & GLFW_MOD_CONTROL)
+  if (mod & GLFW_MOD_CONTROL) {
     mods |= TSM_CONTROL_MASK;
+  }
   if (mod & GLFW_MOD_SHIFT)
     mods |= TSM_SHIFT_MASK;
   if (mod & GLFW_MOD_ALT)
@@ -111,27 +113,25 @@ int main(int argc, char *argv[]) {
   float glyph_height;
   stash.GlyphSize(&glyph_width, &glyph_height);
 
-  Renderer renderer;
-
   while (!glfwWindowShouldClose(window)) {
+    // update
     if (!child.Dispatch()) {
+      // child process exited
       break;
     }
-
     glfwPollEvents();
     int width;
     int height;
     glfwGetFramebufferSize(window, &width, &height);
     screen.Resize((width / glyph_width), (height / glyph_height) - 1);
-
-    // render
     auto attr = screen.Get();
 
-    renderer.Render(width, height, attr->br, attr->bg, attr->bb);
-
+    // render
+    stash.Clear(width, height, attr->br, attr->bg, attr->bb);
     stash.Update(args.fh);
-    screen.Draw(&stash);
+    screen.Draw(&FontStashRenderer::draw_cb, &stash);
 
+    // present
     glfwSwapBuffers(window);
   }
 
