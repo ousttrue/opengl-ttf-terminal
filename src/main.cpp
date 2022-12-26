@@ -22,8 +22,10 @@
 
 #include "ChildProcess.h"
 #include "FontStashRenderer.h"
+#include "Renderer.h"
 #include "TsmScreen.h"
 #include "args.h"
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <external/xkbcommon-keysyms.h>
 #include <stdio.h>
@@ -109,28 +111,24 @@ int main(int argc, char *argv[]) {
   float glyph_height;
   stash.GlyphSize(&glyph_width, &glyph_height);
 
-  screen.Resize((args.width / glyph_width), (args.height / glyph_height) - 1);
+  Renderer renderer;
 
   while (!glfwWindowShouldClose(window)) {
+    if (!child.Dispatch()) {
+      break;
+    }
+
     glfwPollEvents();
+    int width;
+    int height;
+    glfwGetFramebufferSize(window, &width, &height);
+    screen.Resize((width / glyph_width), (height / glyph_height) - 1);
 
     // render
-    child.Dispatch();
     auto attr = screen.Get();
-    glViewport(0, 0, args.width, args.height);
-    glClearColor(attr->br, attr->bg, attr->bb, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glDisable(GL_TEXTURE_2D);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, args.width, args.height, 0, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glDisable(GL_DEPTH_TEST);
-    // glColor4ub(255,255,255,255);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_CULL_FACE);
+
+    renderer.Render(width, height, attr->br, attr->bg, attr->bb);
+
     stash.Update(args.fh);
     screen.Draw(&stash);
 

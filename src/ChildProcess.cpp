@@ -6,13 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void io_handler(int s) {
-  // TODO
+static bool closed = false;
+
+static void io_handler(int s) { // TODO
 }
 
 static void hup_handler(int s) {
   printf("Signal received: %s\n", strsignal(s));
-  exit(1);
+  closed = true;
+  // exit(1);
 }
 
 using term_reac_cb = void (*)(struct shl_pty *pty, char *u8, size_t len,
@@ -66,4 +68,10 @@ void ChildProcess::term_write_cb(struct tsm_vte *vtelocal, const char *u8,
   }
 }
 
-void ChildProcess::Dispatch() { shl_pty_dispatch(pty); }
+bool ChildProcess::Dispatch() {
+  if (closed) {
+    return false;
+  }
+  shl_pty_dispatch(pty);
+  return true;
+}
