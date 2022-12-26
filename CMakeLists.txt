@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 project(togl)
 
 include(FetchContent)
-set(BUILD_SHARED_LIBS ON)
+set(BUILD_SHARED_LIBS OFF)
 set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS OFF)
 set(GLFW_BUILD_DOCS OFF)
@@ -16,8 +16,8 @@ find_package(OpenGL REQUIRED)
 
 add_executable(
   ${PROJECT_NAME}
-  main.c
-  shl_pty.c
+  main.cpp
+  shl_pty.cpp
   libtsm/src/shl_htable.c
   libtsm/src/tsm_render.c
   libtsm/src/tsm_screen.c

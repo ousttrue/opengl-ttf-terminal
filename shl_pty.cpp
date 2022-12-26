@@ -54,9 +54,7 @@ struct ring {
  */
 static int ring_resize(struct ring *r, size_t nsize)
 {
-	char *buf;
-
-	buf = malloc(nsize);
+	auto buf = (char*)malloc(nsize);
 	if (!buf)
 		return -ENOMEM;
 
@@ -374,18 +372,17 @@ static int pty_init_child(int fd)
 	return slave;
 }
 
-pid_t shl_pty_open(struct shl_pty **out,
+pid_t shl_pty_open(shl_pty **out,
 		   shl_pty_input_cb cb,
 		   void *data,
 		   unsigned short term_width,
 		   unsigned short term_height)
 {
-	struct shl_pty *pty;
 	pid_t pid;
 	int fd, comm[2], slave, r;
 	char d;
 
-	pty = calloc(1, sizeof(struct shl_pty));
+	auto pty = (shl_pty*)calloc(1, sizeof(shl_pty));
 	if (!pty)
 		return -ENOMEM;
 
@@ -462,7 +459,7 @@ pid_t shl_pty_open(struct shl_pty **out,
 	return pid;
 }
 
-void shl_pty_ref(struct shl_pty *pty)
+void shl_pty_ref(shl_pty *pty)
 {
 	if (!pty || !pty->ref)
 		return;
@@ -470,7 +467,7 @@ void shl_pty_ref(struct shl_pty *pty)
 	++pty->ref;
 }
 
-void shl_pty_unref(struct shl_pty *pty)
+void shl_pty_unref(shl_pty *pty)
 {
 	if (!pty || !pty->ref || --pty->ref)
 		return;
@@ -480,7 +477,7 @@ void shl_pty_unref(struct shl_pty *pty)
 	free(pty);
 }
 
-void shl_pty_close(struct shl_pty *pty)
+void shl_pty_close(shl_pty *pty)
 {
 	if (pty->fd < 0)
 		return;
@@ -489,22 +486,22 @@ void shl_pty_close(struct shl_pty *pty)
 	pty->fd = -1;
 }
 
-bool shl_pty_is_open(struct shl_pty *pty)
+bool shl_pty_is_open(shl_pty *pty)
 {
 	return pty->fd >= 0;
 }
 
-int shl_pty_get_fd(struct shl_pty *pty)
+int shl_pty_get_fd(shl_pty *pty)
 {
 	return pty->fd;
 }
 
-pid_t shl_pty_get_child(struct shl_pty *pty)
+pid_t shl_pty_get_child(shl_pty *pty)
 {
 	return pty->child;
 }
 
-static void pty_write(struct shl_pty *pty)
+static void pty_write(shl_pty *pty)
 {
 	struct iovec vec[2];
 	size_t num;
@@ -520,7 +517,7 @@ static void pty_write(struct shl_pty *pty)
 		ring_pop(&pty->out_buf, (size_t)r);
 }
 
-static int pty_read(struct shl_pty *pty)
+static int pty_read(shl_pty *pty)
 {
 	ssize_t len, num;
 
@@ -539,7 +536,7 @@ static int pty_read(struct shl_pty *pty)
 	return !num ? -EAGAIN : 0;
 }
 
-int shl_pty_dispatch(struct shl_pty *pty)
+int shl_pty_dispatch(shl_pty *pty)
 {
 	int r;
 
@@ -548,7 +545,7 @@ int shl_pty_dispatch(struct shl_pty *pty)
 	return r;
 }
 
-int shl_pty_write(struct shl_pty *pty, const char *u8, size_t len)
+int shl_pty_write(shl_pty *pty, const char *u8, size_t len)
 {
 	if (!shl_pty_is_open(pty))
 		return -ENODEV;
@@ -556,7 +553,7 @@ int shl_pty_write(struct shl_pty *pty, const char *u8, size_t len)
 	return ring_push(&pty->out_buf, u8, len);
 }
 
-int shl_pty_signal(struct shl_pty *pty, int sig)
+int shl_pty_signal(shl_pty *pty, int sig)
 {
 	int r;
 
@@ -567,7 +564,7 @@ int shl_pty_signal(struct shl_pty *pty, int sig)
 	return (r < 0) ? -errno : 0;
 }
 
-int shl_pty_resize(struct shl_pty *pty,
+int shl_pty_resize(shl_pty *pty,
 		   unsigned short term_width,
 		   unsigned short term_height)
 {
@@ -618,7 +615,6 @@ void shl_pty_bridge_free(int bridge)
 int shl_pty_bridge_dispatch(int bridge, int timeout)
 {
 	struct epoll_event up, ev;
-	struct shl_pty *pty;
 	int fd, r;
 
 	r = epoll_wait(bridge, &ev, 1, timeout);
@@ -632,7 +628,7 @@ int shl_pty_bridge_dispatch(int bridge, int timeout)
 	if (!r)
 		return 0;
 
-	pty = ev.data.ptr;
+	auto pty = (shl_pty*)ev.data.ptr;
 	r = shl_pty_dispatch(pty);
 	if (r == -EAGAIN) {
 		/* EAGAIN means we couldn't dispatch data fast enough. Modify
@@ -648,7 +644,7 @@ int shl_pty_bridge_dispatch(int bridge, int timeout)
 	return 0;
 }
 
-int shl_pty_bridge_add(int bridge, struct shl_pty *pty)
+int shl_pty_bridge_add(int bridge, shl_pty *pty)
 {
 	struct epoll_event ev;
 	int r, fd;
@@ -665,7 +661,7 @@ int shl_pty_bridge_add(int bridge, struct shl_pty *pty)
 	return 0;
 }
 
-void shl_pty_bridge_remove(int bridge, struct shl_pty *pty)
+void shl_pty_bridge_remove(int bridge, shl_pty *pty)
 {
 	int fd;
 

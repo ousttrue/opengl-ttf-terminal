@@ -30,6 +30,7 @@
 
 #include <GLFW/glfw3.h>
 
+extern "C" {
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
 #define GLFONTSTASH_IMPLEMENTATION
@@ -37,11 +38,12 @@
 
 #include "external/xkbcommon-keysyms.h"
 #include "libtsm.h"
+}
 #include "shl_pty.h"
 
 extern char **environ;
 
-static int width = 0, height = 0;
+static int width = 1024, height = 764;
 static float fh = 21.0f; /* font height */
 static float lineh;
 static float ascender;
@@ -124,10 +126,10 @@ static int draw_cb(struct tsm_screen *screen, uint32_t id,
     glRectf(dx+lw,dy,dx,dy+lh);
 
     color = glfonsRGBA(fr,fg,fb,255);
-    fonsSetColor(data, color);
+    fonsSetColor((FONScontext*)data, color);
     for (i = 0; i < len; i += cwidth)  {
       sprintf(buf,"%c",ch[i]);
-      dx = fonsDrawText(data, dx, dy + ascender /*((bounds[2]-bounds[0]))*/, buf, NULL);
+      dx = fonsDrawText((FONScontext*)data, dx, dy + ascender /*((bounds[2]-bounds[0]))*/, buf, NULL);
     }
   }
   return 0;
@@ -170,6 +172,12 @@ int main(int argc, char *argv[])
     fprintf(stderr, "glfwInit\n");
     return -1;
   }
+  GLFWwindow *window = glfwCreateWindow(width, height, "libtsm", NULL, NULL);
+  if (!window) {
+    glfwTerminate();
+    return -1;
+  }
+  glfwMakeContextCurrent(window);
 
   tsm_screen_new(&console, log_tsm, 0);
   tsm_vte_new(&vte, console, term_write_cb, 0, log_tsm, 0);
@@ -196,22 +204,14 @@ int main(int argc, char *argv[])
     signal(SIGCHLD, &hup_handler);
   } else {
     /* child, shell */
-    char *shell = getenv("SHELL") ? : "/bin/bash";
-    char **argv = (char*[]) {  shell, NULL };
-    execve(argv[0], argv, environ);
+    auto shell = getenv("SHELL") ? : "/bin/bash";
+    const char *argv[] = {  shell, NULL };
+    execve(argv[0], (char**)argv, environ);
     /* never reached except on execve error */
     perror("execve error");
     exit(-2);
   }
 
-  GLFWwindow *window = glfwCreateWindow(width, height, "libtsm", NULL, NULL);
-  if (!window) {
-    glfwTerminate();
-    return -1;
-  }
-
-  /* Make the window's context current */
-  glfwMakeContextCurrent(window);
   stash = glfonsCreate(512, 512, FONS_ZERO_TOPLEFT);
   if (stash == NULL) {
     printf("Could not create stash.\n");
